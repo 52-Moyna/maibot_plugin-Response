@@ -23,15 +23,15 @@
 2. `cp config.example.toml config.toml`，填上网关地址和 Token
 3. 重启 MaiBot，日志出现 `回复标记插件已加载` 就成功了
 
-### 可选：美化配置页
+### 美化配置页
 
-配置页默认是普通表单。跑一下这个，滑条就能直接填数字、整体变成分组卡片：
+配置里的「美化配置页」开关，默认开着 —— 开着就是分组卡片、滑条能直接填数字，关掉还原成 dashboard 默认样式。**拨一下自动生效，不用跑脚本。**
+
+万一没生效（比如升级 dashboard 覆盖掉了），手动兜底跑一次：
 
 ```bash
 python tools/inject_webui.py
 ```
-
-它就是往 dashboard 的静态文件里插一段 CSS/JS（框架不让插件改页面，只能这么绕）。升级 dashboard 后会失效，重跑一次即可；要在 MaiBot 用的那个 Python 环境里执行。
 
 ## 配置
 
@@ -42,6 +42,7 @@ WebUI 里是三张卡片，也可以直接改 `config.toml`。
 | `enabled`           | `true` | 总开关            |
 | `react_probability` | `1.0`  | 贴表情概率，`0` 完全不贴 |
 | `emoji_count`       | `1`    | 一次贴几个（1~10）    |
+| `beautify_ui`       | `true` | 美化配置页，关掉即还原    |
 
 | `[emoji]` 表情池 | 默认        | 说明               |
 | ------------- | --------- | ---------------- |

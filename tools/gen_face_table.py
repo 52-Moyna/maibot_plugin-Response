@@ -74,6 +74,23 @@ LIMITED_KEYWORDS = ("限时",)
 #: 内置快照：给没有 SnowLuma 的用户（NapCat / Lagrange / LLOneBot…）兜底用。
 SNAPSHOT_PATH = Path(__file__).resolve().parent / "face_catalog_snapshot.json"
 
+#: 表情雪碧图（由 fetch_face_images.py 抓取生成）。没有就生成不带图的版本。
+SPRITE_PATH = Path(__file__).resolve().parent / "face_sprite.json"
+
+
+def load_sprite() -> dict[str, Any] | None:
+    """读雪碧图数据；缺失或损坏就当没有，退回纯文字版。"""
+
+    if not SPRITE_PATH.is_file():
+        return None
+    try:
+        data = json.loads(SPRITE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not data.get("image") or not data.get("index"):
+        return None
+    return data
+
 
 def _peek_fetched(path: Path) -> int:
     """取目录文件的抓取时间戳（毫秒）。没有 fetchedAt 就退回文件修改时间。"""
@@ -428,6 +445,13 @@ HTML_TEMPLATE = """<!doctype html>
   }
   .item:hover { border-color: var(--accent); transform: translateY(-1px); }
   .item:active { transform: scale(.97); }
+  .face {
+    display: block; width: var(--face-size, 40px); height: var(--face-size, 40px);
+    margin: 0 auto 5px; background-image: var(--sprite); background-repeat: no-repeat;
+    background-size: var(--sprite-size, auto); visibility: hidden;
+    image-rendering: -webkit-optimize-contrast;
+  }
+  .face.on { visibility: visible; }
   .item .id { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .5px; }
   .item .name { font-size: 12px; color: var(--muted); margin-top: 3px; word-break: break-all; }
   .item .badge {
@@ -453,7 +477,7 @@ HTML_TEMPLATE = """<!doctype html>
 <div class="wrap">
   <h1>QQ 表情 ID 速查器</h1>
   <div class="sub">
-    共 <b>__TOTAL__</b> 个 face id，其中 <b>__NEW__</b> 个是编号 221 之后的新版表情；
+    共 <b>__TOTAL__</b> 个 face id__PIC_NOTE__，其中 <b>__NEW__</b> 个是编号 221 之后的新版表情；
     另有 <b>__EMOJI__</b> 个 emoji 码点（角标「码」）。数据抓取于 __FETCHED__。点卡片即复制。
   </div>
 
@@ -474,6 +498,7 @@ HTML_TEMPLATE = """<!doctype html>
 
 <script>
 const DATA = __DATA__;
+const SPRITE = __SPRITE__;
 const NEW_MIN = __NEW_MIN__;
 
 const grid = document.getElementById('grid');
@@ -481,6 +506,25 @@ const chips = document.getElementById('chips');
 const q = document.getElementById('q');
 const empty = document.getElementById('empty');
 const toast = document.getElementById('toast');
+
+// 雪碧图：整张图设一次 CSS 变量，每张卡片只算 background-position
+let spriteRows = 0;
+if (SPRITE) {
+  spriteRows = Math.floor(Math.max(...Object.values(SPRITE.index)) / SPRITE.cols) + 1;
+  const root = document.documentElement.style;
+  root.setProperty('--sprite', 'url("' + SPRITE.image + '")');
+  root.setProperty('--face-size', SPRITE.size + 'px');
+  root.setProperty('--sprite-size', SPRITE.cols * SPRITE.size + 'px ' + spriteRows * SPRITE.size + 'px');
+}
+
+function faceStyle(fill) {
+  if (!SPRITE) return '';
+  const pos = SPRITE.index[fill];
+  if (pos === undefined) return '';
+  const x = -(pos % SPRITE.cols) * SPRITE.size;
+  const y = -Math.floor(pos / SPRITE.cols) * SPRITE.size;
+  return ' style="background-position:' + x + 'px ' + y + 'px"';
+}
 
 let pack = '全部';
 let onlyNew = false;
@@ -541,8 +585,12 @@ function render() {
       : d.k === 'emoji'
         ? '<span class="badge code">码</span>'
         : '';
+    const hasPic = SPRITE && SPRITE.index[d.s] !== undefined;
+    const face = SPRITE
+      ? '<div class="face' + (hasPic ? ' on' : '') + '"' + faceStyle(d.s) + '></div>'
+      : '';
     el.innerHTML =
-      badge + '<div class="id">' + d.i + '</div>' + '<div class="name">' + d.n + '</div>';
+      badge + face + '<div class="id">' + d.i + '</div>' + '<div class="name">' + d.n + '</div>';
     el.title = d.p + (d.e ? ' · em ' + d.e : '');
     el.onclick = () => copy(d, el);
     frag.appendChild(el);
@@ -608,12 +656,29 @@ def render_html(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
         }
         for r in ordered
     ]
+
+    sprite = load_sprite()
+    sprite_payload = (
+        {
+            "size": sprite["size"],
+            "cols": sprite["cols"],
+            "image": sprite["image"],
+            "index": {r["fill"]: sprite["index"][r["fill"]] for r in ordered if r["fill"] in sprite["index"]},
+        }
+        if sprite
+        else None
+    )
+    with_pic = sum(1 for r in ordered if sprite_payload and r["fill"] in sprite_payload["index"])
+
     html = HTML_TEMPLATE
     html = html.replace("__DATA__", json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    html = html.replace("__SPRITE__", json.dumps(sprite_payload, ensure_ascii=False, separators=(",", ":")) if sprite_payload else "null")
     html = html.replace("__NEW_MIN__", str(LEGACY_MAX_ID))
     html = html.replace("__TOTAL__", str(len(uniq)))
     html = html.replace("__NEW__", str(new_count))
     html = html.replace("__EMOJI__", str(len(emoji_rows)))
+    html = html.replace("__PIC__", str(with_pic))
+    html = html.replace("__PIC_NOTE__", f"（{with_pic} 个带预览图）" if with_pic else "")
     html = html.replace("__FETCHED__", meta["fetched_at"])
     return html
 

@@ -9,6 +9,8 @@ config_version = "0.4.0"
 react_probability = 1.0
 # 每次贴几个表情（WebUI 里是滑条）；从表情池随机抽，池子不够时按池子大小封顶
 emoji_count = 1
+# 美化配置页：分组卡片、滑条数值可直接输入。关掉即还原成 dashboard 默认样式
+beautify_ui = true
 
 # ============ 表情池 ============
 [emoji]

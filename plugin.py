@@ -36,9 +36,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 import asyncio
 import http.client
+import importlib.util
 import json
 import logging
 import random
@@ -75,6 +77,22 @@ DEFAULT_PORT = 3000
 _SLIDER = {"x-widget": "slider"}
 
 _FALLBACK_LOGGER = logging.getLogger(PLUGIN_ID)
+
+
+def _load_injector() -> Any:
+    """按文件路径加载同目录的 ``webui_inject``。
+
+    不用 ``from . import webui_inject``：宿主加载插件的方式不一定是标准包导入，
+    相对导入有翻车风险，按路径加载最稳。
+    """
+
+    path = Path(__file__).resolve().parent / "webui_inject.py"
+    spec = importlib.util.spec_from_file_location("_mb_webui_inject", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"加载 webui_inject.py 失败：{path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class PluginSection(PluginConfigBase):
@@ -121,6 +139,18 @@ class PluginSection(PluginConfigBase):
         default="0.4.0",
         description="配置版本号，由插件维护，请勿手动修改",
         json_schema_extra={"hidden": True},
+    )
+    beautify_ui: bool = Field(
+        default=True,
+        description=(
+            "把插件配置页变成分组卡片、滑条数值可直接输入。"
+            "改完自动生效，不用再跑脚本；关掉就还原成 dashboard 默认样式"
+        ),
+        json_schema_extra={
+            "label": "美化配置页",
+            "order": 3,
+            "hint": "关掉即还原。dashboard 升级后会自动补回来",
+        },
     )
 
 
@@ -212,6 +242,7 @@ class ReplyMarkPlugin(MaiBotPlugin):
         self._port: int = DEFAULT_PORT
         self._token: str = ""
         self._timeout_seconds: int = 5
+        self._beautify_ui: bool = True
         # 轻量统计，只进日志，不落盘。
         self._reacted_total: int = 0
         self._skipped_total: int = 0
@@ -234,6 +265,7 @@ class ReplyMarkPlugin(MaiBotPlugin):
             self._host,
             self._port,
         )
+        await self._sync_webui_skin()
 
     async def on_unload(self) -> None:
         """插件卸载时把本次运行的统计写进日志，方便回查。"""
@@ -259,6 +291,26 @@ class ReplyMarkPlugin(MaiBotPlugin):
             self._emoji_pool,
             self._emoji_count,
         )
+        await self._sync_webui_skin()
+
+    async def _sync_webui_skin(self) -> None:
+        """按「美化配置页」开关注入或移除样式。失败只记日志，绝不影响贴表情。"""
+
+        try:
+            injector = await asyncio.to_thread(_load_injector)
+            dist = injector.find_dist()
+            if dist is None:
+                if self._beautify_ui:
+                    self._logger().debug("配置页美化：没找到 maibot_dashboard，跳过")
+                return
+            if self._beautify_ui:
+                changed, message = await asyncio.to_thread(injector.inject, dist)
+            else:
+                changed, message = await asyncio.to_thread(injector.remove, dist)
+            self._logger().info("配置页美化：%s（开关=%s）", message, self._beautify_ui)
+            del changed
+        except Exception as exc:  # noqa: BLE001 - 美化失败不能连累主功能
+            self._logger().warning("配置页美化同步失败（不影响贴表情）：%s", exc)
 
     # ------------------------------------------------------------------ #
     # 核心 Hook
@@ -338,6 +390,7 @@ class ReplyMarkPlugin(MaiBotPlugin):
         self._port = int(network.port)
         self._token = str(network.token or "").strip()
         self._timeout_seconds = max(1, int(network.timeout_seconds))
+        self._beautify_ui = bool(main.beautify_ui)
 
     def _draw_emojis(self) -> list[str]:
         """从表情池随机抽 emoji_count 个（不放回，池子不够就全给）。"""

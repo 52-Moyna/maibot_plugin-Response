@@ -14,6 +14,10 @@
 - 引用框、消息内容、发送链路全部保持宿主原样；
 - 插件出问题最多是「没贴上表情」，不可能影响消息本身。
 
+**私聊不贴**：QQ 不支持给私聊消息点表情，OneBot 会回
+``emoji reactions are not supported on private messages``。这是平台能力缺失而非故障，
+所以私聊一律静默跳过 —— 不发请求、不打日志、不计失败。
+
 表情 ID 说明（``emoji_pool`` 里填的是 QQ 表情的 **face id**，十进制）：
 
     478 = 对的对的   14 = 微笑   13 = 呲牙   76 = 赞
@@ -37,19 +41,23 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 import asyncio
 import http.client
 import importlib.util
 import json
 import logging
 import random
+import sys
 
 from maibot_sdk import Field, HookHandler, MaiBotPlugin, PluginConfigBase
 from maibot_sdk.types import ErrorPolicy, HookMode, HookOrder
+from pydantic import field_validator
 
 __all__ = [
     "EmojiSection",
+    "GroupRule",
+    "GroupSection",
     "NetworkSection",
     "PluginSection",
     "ReplyMarkConfig",
@@ -76,7 +84,51 @@ DEFAULT_PORT = 3000
 #: 让 WebUI 把这个字段渲染成滑条（前端按 ui_type 分支，SDK 侧读 x-widget）。
 _SLIDER = {"x-widget": "slider"}
 
+#: 「本群策略」的三个取值。
+#: 中文注释必须揉进**值本身**：配置页的下拉框由前端 ``pn`` 组件渲染，
+#: 选项文本就是 ``String(choice)``，前端不做 label 映射（``item_fields`` 里也没有
+#: 存放显示名的位置），写在 description / hint 里都不会显示出来。
+MODE_INHERIT = "inherit（沿用全局）"
+MODE_CUSTOM = "custom（自定义）"
+MODE_OFF = "off（不贴表情）"
+
+#: 兼容层：手改 TOML 或旧版本配置里裸写的英文值，校验前统一补上中文注释。
+_MODE_ALIASES = {
+    "inherit": MODE_INHERIT,
+    "custom": MODE_CUSTOM,
+    "off": MODE_OFF,
+}
+
+#: 私聊场景下 OneBot 的固定错误文案（``emoji reactions are not supported on private messages``）。
+#: QQ 本身不支持给私聊消息贴表情，属能力缺失而非故障，一律静默跳过。
+_PRIVATE_UNSUPPORTED = "not supported on private"
+
 _FALLBACK_LOGGER = logging.getLogger(PLUGIN_ID)
+
+
+def _extract_group_id(message: Any) -> str:
+    """从 after_send 的载荷里取群号，私聊返回空串。
+
+    ``after_send`` 的 ``message`` 是 ``serialize_session_message()`` 的产物，
+    群号位置：``message["message_info"]["group_info"]["group_id"]``；
+    私聊时 ``group_info`` 为 ``None``。
+
+    Args:
+        message: Hook 载荷里的消息字典。
+
+    Returns:
+        str: 群号；私聊或结构不符时为空串。
+    """
+
+    if not isinstance(message, dict):
+        return ""
+    info = message.get("message_info")
+    if not isinstance(info, dict):
+        return ""
+    group = info.get("group_info")
+    if not isinstance(group, dict):
+        return ""
+    return str(group.get("group_id") or "").strip()
 
 
 def _load_injector() -> Any:
@@ -91,6 +143,8 @@ def _load_injector() -> Any:
     if spec is None or spec.loader is None:
         raise RuntimeError(f"加载 webui_inject.py 失败：{path}")
     module = importlib.util.module_from_spec(spec)
+    # 先登记再执行：模块里有 @dataclass 之类的装饰器时，要靠 sys.modules 反查注解。
+    sys.modules["_mb_webui_inject"] = module
     spec.loader.exec_module(module)
     return module
 
@@ -144,12 +198,13 @@ class PluginSection(PluginConfigBase):
         default=True,
         description=(
             "把插件配置页变成分组卡片、滑条数值可直接输入。"
-            "改完自动生效，不用再跑脚本；关掉就还原成 dashboard 默认样式"
+            "拨完必须重载整个 WebUI 页面（浏览器 F5）才生效，"
+            "在页面里刷新插件列表或切换插件都不算；关掉就还原成 dashboard 默认样式"
         ),
         json_schema_extra={
             "label": "美化配置页",
             "order": 3,
-            "hint": "关掉即还原。dashboard 升级后会自动补回来",
+            "hint": "拨完要重载整个 WebUI 页面（F5）才生效，光刷新插件列表不行。dashboard 升级后会自动补回来",
         },
     )
 
@@ -180,11 +235,109 @@ class EmojiSection(PluginConfigBase):
     )
 
 
+class GroupRule(PluginConfigBase):
+    """单个群的独立设置。没写进列表的群一律走全局。
+
+    注意：配置页把「列表里的子模型」渲染成可增删的小卡片，但子模型字段
+    只显示 ``label``、不显示 ``hint``，所以说明都揉进 label 里；另外
+    ``int`` 在这条渲染路径上会退化成文本框，数字字段一律用 ``float`` 声明。
+    """
+
+    group_id: str = Field(
+        default="",
+        description="QQ 群号（纯数字）",
+        json_schema_extra={"label": "群号"},
+    )
+    mode: Literal[
+        "inherit（沿用全局）", "custom（自定义）", "off（不贴表情）"
+    ] = Field(
+        default=MODE_INHERIT,
+        description="沿用全局=跟上面的全局配置走；自定义=用本群下面几项；不贴=这个群完全不贴",
+        json_schema_extra={"label": "本群策略"},
+    )
+    react_probability: float = Field(
+        default=0.6,
+        description="本群贴表情概率，0~1。仅「本群策略=自定义」时生效",
+        json_schema_extra={"label": "概率 0~1（仅自定义）"},
+    )
+    emoji_count: float = Field(
+        default=1.0,
+        description="本群每次贴几个。仅「本群策略=自定义」时生效",
+        json_schema_extra={"label": "贴几个（仅自定义）"},
+    )
+    emoji_pool: list[str] = Field(
+        default_factory=list,
+        description="本群表情池（face id）。留空则沿用全局表情池",
+        json_schema_extra={"label": "表情池（空=全局）"},
+    )
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def _normalize_mode(cls, value: Any) -> Any:
+        """把裸写的 ``inherit`` / ``custom`` / ``off`` 补成带中文注释的正式值。
+
+        这样手改 TOML、或升级前写下的旧配置都不会因为取值不匹配而让插件加载失败。
+
+        Args:
+            value: 配置里读到的原始取值。
+
+        Returns:
+            Any: 归一化后的取值；无法识别时原样返回，交给 Literal 报错。
+        """
+
+        if isinstance(value, str):
+            key = value.split("（")[0].split("(")[0].strip().lower()
+            return _MODE_ALIASES.get(key, value)
+        return value
+
+
+class GroupSection(PluginConfigBase):
+    """给指定群单独设规矩，没写到的群走全局，互不影响。"""
+
+    __ui_label__ = "分群设置"
+    __ui_order__ = 2
+
+    rules: list[GroupRule] = Field(
+        default_factory=list,
+        description=(
+            "写到的群按本群设置运行，没写到的群走全局配置；"
+            "同一个群写了两条时以第一条为准"
+        ),
+        json_schema_extra={
+            "label": "分群规则",
+            "order": 0,
+            "hint": "点「添加项目」加一个群。群号填错只会被当成没配置，不影响别的群",
+        },
+    )
+
+
+class _ResolvedRule:
+    """分群配置解析后的运行时形态。
+
+    刻意用普通类而不是 ``@dataclass``：本文件有 ``from __future__ import annotations``，
+    ``dataclass`` 处理装饰器时要靠 ``sys.modules[cls.__module__]`` 反查注解，
+    一旦加载方没把模块注册进 ``sys.modules``（宿主目前有注册，但这属于隐式依赖），
+    就会在 import 阶段直接抛 ``AttributeError``。普通类不吃这一套。
+    """
+
+    __slots__ = ("enabled", "probability", "count", "pool")
+
+    def __init__(self, enabled: bool, probability: float, count: int, pool: list[str]) -> None:
+        #: 这个群是否贴表情（``off`` 时为 False）。
+        self.enabled = enabled
+        #: 贴表情概率。
+        self.probability = probability
+        #: 每次贴几个。
+        self.count = count
+        #: 表情池，已去重；为空表示沿用全局。
+        self.pool = pool
+
+
 class NetworkSection(PluginConfigBase):
     """OneBot v11 HTTP 连接信息。本机走 SnowLuma 网关时保持默认即可。"""
 
     __ui_label__ = "连接"
-    __ui_order__ = 2
+    __ui_order__ = 3
 
     host: str = Field(
         default="127.0.0.1",
@@ -223,6 +376,7 @@ class ReplyMarkConfig(PluginConfigBase):
 
     plugin: PluginSection = Field(default_factory=PluginSection)
     emoji: EmojiSection = Field(default_factory=EmojiSection)
+    group: GroupSection = Field(default_factory=GroupSection)
     network: NetworkSection = Field(default_factory=NetworkSection)
 
 
@@ -243,9 +397,13 @@ class ReplyMarkPlugin(MaiBotPlugin):
         self._token: str = ""
         self._timeout_seconds: int = 5
         self._beautify_ui: bool = True
+        # 群号 → 本群策略；空字典表示所有群都走全局。
+        self._group_rules: dict[str, _ResolvedRule] = {}
         # 轻量统计，只进日志，不落盘。
         self._reacted_total: int = 0
         self._skipped_total: int = 0
+        self._skipped_private_total: int = 0
+        self._skipped_off_total: int = 0
         self._failed_total: int = 0
         self._last_error: str = ""
 
@@ -257,23 +415,35 @@ class ReplyMarkPlugin(MaiBotPlugin):
 
         self._refresh_settings()
         self._logger().info(
-            "回复标记插件已加载：enabled=%s 概率=%s 表情池=%s 每个回%d 网关=%s:%d（引用框不摘）",
+            "回复标记插件已加载：enabled=%s 概率=%s 表情池=%s 每个回%d 网关=%s:%d 分群规则=%d 条（引用框不摘）",
             self._enabled,
             self._react_probability,
             self._emoji_pool,
             self._emoji_count,
             self._host,
             self._port,
+            len(self._group_rules),
         )
+        if self._group_rules:
+            for group_id, rule in self._group_rules.items():
+                self._logger().info(
+                    "  分群 %s：%s",
+                    group_id,
+                    "不贴表情"
+                    if not rule.enabled
+                    else f"概率={rule.probability} 每个回{rule.count} 表情池={rule.pool or '沿用全局'}",
+                )
         await self._sync_webui_skin()
 
     async def on_unload(self) -> None:
         """插件卸载时把本次运行的统计写进日志，方便回查。"""
 
         self._logger().info(
-            "回复标记插件已卸载：贴表情 %d 次、抽未中 %d 次、失败 %d 次%s",
+            "回复标记插件已卸载：贴表情 %d 次、抽未中 %d 次、私聊跳过 %d 次、分群关闭 %d 次、失败 %d 次%s",
             self._reacted_total,
             self._skipped_total,
+            self._skipped_private_total,
+            self._skipped_off_total,
             self._failed_total,
             f"，最近失败原因={self._last_error}" if self._last_error else "",
         )
@@ -284,12 +454,13 @@ class ReplyMarkPlugin(MaiBotPlugin):
         del config_data
         self._refresh_settings()
         self._logger().info(
-            "回复标记插件配置已更新：scope=%s version=%s 概率=%s 表情池=%s 每个回%d",
+            "回复标记插件配置已更新：scope=%s version=%s 概率=%s 表情池=%s 每个回%d 分群规则=%d 条",
             scope,
             version,
             self._react_probability,
             self._emoji_pool,
             self._emoji_count,
+            len(self._group_rules),
         )
         await self._sync_webui_skin()
 
@@ -334,13 +505,33 @@ class ReplyMarkPlugin(MaiBotPlugin):
             reply_message_id = str(kwargs.get("reply_message_id") or "").strip()
             if not reply_message_id:
                 return
-            if self._react_probability <= 0:
+            # 私聊不贴：QQ 不支持给私聊消息点表情，OneBot 会返回
+            # "emoji reactions are not supported on private messages"。
+            # 这是平台能力缺失，不是故障 —— 静默跳过，不打日志、不计失败。
+            group_id = _extract_group_id(kwargs.get("message"))
+            if not group_id:
+                self._skipped_private_total += 1
+                return
+            # 分群策略优先：写到的群按本群设置跑，没写到的群回落全局。
+            rule = self._group_rules.get(group_id)
+            if rule is None:
+                probability = self._react_probability
+                pool = self._emoji_pool
+                count = self._emoji_count
+            elif not rule.enabled:
+                self._skipped_off_total += 1
+                return
+            else:
+                probability = rule.probability
+                pool = rule.pool or self._emoji_pool
+                count = rule.count
+            if probability <= 0:
                 self._skipped_total += 1
                 return
-            if self._react_probability < 1.0 and random.random() > self._react_probability:
+            if probability < 1.0 and random.random() > probability:
                 self._skipped_total += 1
                 return
-            emojis = self._draw_emojis()
+            emojis = self._draw_emojis(pool, count)
             # HTTP 调用是阻塞的，放到线程里，避免占住事件循环。
             ok_count, detail = await asyncio.to_thread(
                 self._set_emoji_likes, reply_message_id, emojis
@@ -355,6 +546,10 @@ class ReplyMarkPlugin(MaiBotPlugin):
                     len(emojis),
                 )
             if ok_count < len(emojis):
+                # 兜底：万一群号没取到、真的打到私聊去了，也按能力缺失静默处理。
+                if _PRIVATE_UNSUPPORTED in detail.lower():
+                    self._skipped_private_total += 1
+                    return
                 self._failed_total += 1
                 self._last_error = detail
                 self._logger().warning(
@@ -391,15 +586,59 @@ class ReplyMarkPlugin(MaiBotPlugin):
         self._token = str(network.token or "").strip()
         self._timeout_seconds = max(1, int(network.timeout_seconds))
         self._beautify_ui = bool(main.beautify_ui)
+        self._group_rules = self._parse_group_rules(getattr(self.config, "group", None))
 
-    def _draw_emojis(self) -> list[str]:
-        """从表情池随机抽 emoji_count 个（不放回，池子不够就全给）。"""
+    def _parse_group_rules(self, section: Any) -> dict[str, _ResolvedRule]:
+        """把分群配置整理成 ``{群号: 策略}``。
 
-        pool = self._emoji_pool or [DEFAULT_EMOJI_ID]
-        count = min(max(1, self._emoji_count), len(pool))
-        if count >= len(pool):
-            return list(pool)
-        return random.sample(pool, count)
+        宽容策略：群号没填、重复、以及 ``mode=inherit`` 的行都不会登记
+        （不登记即回落全局），所以某一处写错不会连累其它群，也不会让插件起不来。
+
+        Args:
+            section: ``GroupSection`` 配置对象，可能为 ``None``。
+
+        Returns:
+            Dict[str, _ResolvedRule]: 群号到策略的映射；空字典表示全走全局。
+        """
+
+        resolved: dict[str, _ResolvedRule] = {}
+        rules = getattr(section, "rules", None) or []
+        for index, rule in enumerate(rules, start=1):
+            group_id = str(getattr(rule, "group_id", "") or "").strip()
+            if not group_id:
+                continue
+            if group_id in resolved:
+                self._logger().debug(
+                    "分群规则第 %d 条的群号 %s 与前面重复，按先出现的生效", index, group_id
+                )
+                continue
+            # 取值形如「custom（自定义）」，取出括号前的英文关键词做判断。
+            mode = str(getattr(rule, "mode", "") or "").split("（")[0].split("(")[0].strip().lower()
+            if mode == "off":
+                resolved[group_id] = _ResolvedRule(False, 0.0, 1, [])
+                continue
+            if mode != "custom":
+                # inherit（默认值）→ 不登记，自然回落全局。
+                continue
+            raw_probability = getattr(rule, "react_probability", 0.0)
+            raw_count = getattr(rule, "emoji_count", 1)
+            raw_pool = getattr(rule, "emoji_pool", None) or []
+            probability = min(1.0, max(0.0, float(raw_probability or 0.0)))
+            count = min(10, max(1, int(round(float(raw_count or 1)))))
+            pool = list(
+                dict.fromkeys(str(item).strip() for item in raw_pool if str(item).strip())
+            )
+            resolved[group_id] = _ResolvedRule(True, probability, count, pool)
+        return resolved
+
+    def _draw_emojis(self, pool: list[str], count: int) -> list[str]:
+        """从给定表情池随机抽 count 个（不放回，池子不够就全给）。"""
+
+        candidates = pool or [DEFAULT_EMOJI_ID]
+        pick = min(max(1, int(count)), len(candidates))
+        if pick >= len(candidates):
+            return list(candidates)
+        return random.sample(candidates, pick)
 
     def _set_emoji_likes(self, message_id: str, emojis: list[str]) -> tuple[int, str]:
         """逐个调用 set_msg_emoji_like，返回 (成功个数, 最后一条错误详情)。"""

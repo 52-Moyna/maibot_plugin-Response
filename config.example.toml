@@ -23,6 +23,19 @@ emoji_pool = ["478"]
 # 表情池为空时用它兜底，一般不用管
 emoji_id = "478"
 
+# ============ 分群设置 ============
+# 给指定群单独设规矩：写到的群按本群设置跑，没写到的群走上面的全局配置，互不影响。
+# 平时不用手写 —— WebUI 的「分群设置」卡片里点「添加项目」就行。
+# mode: "inherit（沿用全局）" / "custom（自定义）" / "off（不贴表情）"
+[group]
+# 示例（去掉 # 即可生效，群号换成实际的）：
+# [[group.rules]]
+# group_id = "862129543"
+# mode = "custom（自定义）"
+# react_probability = 0.5
+# emoji_count = 2
+# emoji_pool = ["478", "14"]
+
 # ============ 连接 ============
 [network]
 # OneBot v11 HTTP 服务（本机 SnowLuma 网关在 3000 端口；NapCat 常见 9999）

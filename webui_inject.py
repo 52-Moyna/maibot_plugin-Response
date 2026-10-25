@@ -3,6 +3,10 @@
 MaiBot 的插件配置页是 dashboard 提供的，插件没法在运行时改它的布局，
 只能把一小段 css / js 塞进 ``maibot_dashboard/dist`` 里，让它跟着页面一起加载。
 
+**这会写到宿主程序的安装目录，默认不执行**：只有配置里 ``beautify_ui = true``
+（用户主动打开）或手动跑 ``tools/inject_webui.py`` 才会动文件。
+开关关着时插件加载完全不碰 dist 目录。
+
 这个模块供两处复用：
 
 - ``plugin.py``：配置里的「美化配置页」开关一开一关，插件自己调 :func:`inject` / :func:`remove`

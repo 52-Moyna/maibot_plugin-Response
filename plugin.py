@@ -195,16 +195,17 @@ class PluginSection(PluginConfigBase):
         json_schema_extra={"hidden": True},
     )
     beautify_ui: bool = Field(
-        default=True,
+        default=False,
         description=(
-            "把插件配置页变成分组卡片、滑条数值可直接输入。"
-            "拨完必须重载整个 WebUI 页面（浏览器 F5）才生效，"
-            "在页面里刷新插件列表或切换插件都不算；关掉就还原成 dashboard 默认样式"
+            "把插件配置页变成分组卡片、滑条数值可直接输入。默认关闭。"
+            "打开后会改写 dashboard 的静态文件（dist/index.html 与 dist/assets），"
+            "并需重载整个 WebUI 页面（浏览器 F5）才生效；关掉即还原。"
+            "不想用开关也可以手动跑 tools/inject_webui.py，加 --remove 移除"
         ),
         json_schema_extra={
-            "label": "美化配置页",
+            "label": "美化配置页（会改 dashboard 静态文件）",
             "order": 3,
-            "hint": "拨完要重载整个 WebUI 页面（F5）才生效，光刷新插件列表不行。dashboard 升级后会自动补回来",
+            "hint": "默认关闭。打开会往 maibot_dashboard 的 dist 目录写两个文件，重载 WebUI 页面（F5）才生效；关掉还原",
         },
     )
 
@@ -396,7 +397,7 @@ class ReplyMarkPlugin(MaiBotPlugin):
         self._port: int = DEFAULT_PORT
         self._token: str = ""
         self._timeout_seconds: int = 5
-        self._beautify_ui: bool = True
+        self._beautify_ui: bool = False
         # 群号 → 本群策略；空字典表示所有群都走全局。
         self._group_rules: dict[str, _ResolvedRule] = {}
         # 轻量统计，只进日志，不落盘。
@@ -433,7 +434,7 @@ class ReplyMarkPlugin(MaiBotPlugin):
                     if not rule.enabled
                     else f"概率={rule.probability} 每个回{rule.count} 表情池={rule.pool or '沿用全局'}",
                 )
-        await self._sync_webui_skin()
+        await self._sync_webui_skin(apply_only=True)
 
     async def on_unload(self) -> None:
         """插件卸载时把本次运行的统计写进日志，方便回查。"""
@@ -464,8 +465,16 @@ class ReplyMarkPlugin(MaiBotPlugin):
         )
         await self._sync_webui_skin()
 
-    async def _sync_webui_skin(self) -> None:
-        """按「美化配置页」开关注入或移除样式。失败只记日志，绝不影响贴表情。"""
+    async def _sync_webui_skin(self, *, apply_only: bool = False) -> None:
+        """按「美化配置页」开关写入或移除样式。失败只记日志，绝不影响贴表情。
+
+        ``apply_only`` 供插件加载时使用：开关关着就什么都不做。
+        美化会改写 dashboard 的静态文件，插件不能一加载就替用户把样式拆掉，
+        只有用户自己把开关从开拨到关（配置热重载）才执行还原。
+        """
+
+        if apply_only and not self._beautify_ui:
+            return
 
         try:
             injector = await asyncio.to_thread(_load_injector)

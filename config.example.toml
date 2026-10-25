@@ -9,8 +9,11 @@ config_version = "0.4.0"
 react_probability = 1.0
 # 每次贴几个表情（WebUI 里是滑条）；从表情池随机抽，池子不够时按池子大小封顶
 emoji_count = 1
-# 美化配置页：分组卡片、滑条数值可直接输入。关掉即还原成 dashboard 默认样式
-beautify_ui = true
+# 美化配置页：分组卡片、滑条数值可直接输入。默认关闭。
+# 打开会往 maibot_dashboard 的 dist 目录写两个文件（index.html 内嵌一段 + dist/assets 下俩资源），
+# 重载整个 WebUI 页面（F5）才生效；关掉即还原。dashboard 升级会覆盖掉，需重拨一次。
+# 不想用开关，也可以手动跑 python tools/inject_webui.py（加 --remove 移除）
+beautify_ui = false
 
 # ============ 表情池 ============
 [emoji]

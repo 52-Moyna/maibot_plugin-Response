@@ -2,7 +2,7 @@
 
 机器人回复某条消息时，顺手在被回复的那条消息上贴一个表情回应。
 
-![插件配置界面](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/config-panel.png)
+![插件配置界面（开启「美化配置页」后）](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/config-panel.png)
 
 `MaiBot 1.0.0+` · `maibot-plugin-sdk 2.5.1+` · 无需额外依赖 · Windows / Linux / macOS
 
@@ -24,18 +24,20 @@
 2. `cp config.example.toml config.toml`，填上网关地址和 Token
 3. 重启 MaiBot，日志出现 `回复标记插件已加载` 就成功了
 
-### 美化配置页
+### 美化配置页（可选）
 
-配置里的「美化配置页」开关，默认开着 —— 开着就是分组卡片、滑条能直接填数字，关掉还原成 dashboard 默认样式。
+**默认关闭。** 打开后配置页变成分组卡片、滑条能直接填数字；关掉还原成 dashboard 默认样式。
 
-**拨完必须重载整个 WebUI 页面才生效**（浏览器 `F5` / 一键包`Ctrl+R`）。  
-*只刷新插件列表、或者在页面里切到别的插件再切回来都****不算&#x20;****—— 插件改的是 dashboard 的静态文件，页面不重新加载就读不到新的。*
-
-万一没生效（比如升级 dashboard 覆盖掉了），手动兜底跑一次：
+打开它：`config.toml` 里 `beautify_ui = true`，或者手动跑一次脚本。
 
 ```bash
-python tools/inject_webui.py
+python tools/inject_webui.py            # 注入
+python tools/inject_webui.py --remove   # 移除
 ```
+
+⚠️ **会改 dashboard 的文件，先看明白再开：** 只动 `<python-env>/Lib/site-packages/maibot_dashboard/dist/` —— 往 `index.html` 插一段带起止标记的引用，再复制两个文件进 `dist/assets/`。`--remove` 靠标记干净删掉、不碰别的；升级 dashboard 会覆盖，得重开一次。开关关着时插件加载**不碰**这些文件。
+
+改完**必须重载整个 WebUI 页面**（`F5`），光刷新插件列表、切换插件都不算。
 
 ## 配置
 
@@ -46,7 +48,7 @@ WebUI 里是四张卡片，也可以直接改 `config.toml`。
 | `enabled`           | `true` | 总开关                      |
 | `react_probability` | `1.0`  | 贴表情概率，`0` = 默认不贴（分群可单独开） |
 | `emoji_count`       | `1`    | 一次贴几个（1~10）              |
-| `beautify_ui`       | `true` | 美化配置页，关掉还原（需重载 WebUI）    |
+| `beautify_ui`       | `false` | 美化配置页，会改 dashboard 的 dist（见上），需重载 WebUI |
 
 | `[emoji]` 表情池 | 默认        | 说明               |
 | ------------- | --------- | ---------------- |
@@ -131,7 +133,7 @@ mode = "off（不贴表情）"
 | 从没贴上过          | 看日志有没有 `贴表情失败`；401 多半是 token 格式不对                                               |
 | 贴出来是空白         | ID 填成了十六进制，换回 face id                                                           |
 | 日志刷 `已经设置过该表情` | 同一条消息被回了两次，属幂等成功，忽略即可                                                           |
-| 配置页样式没了        | `maibot_dashboard` 升级会覆盖 dist，重跑 `tools/inject_webui.py`。拨了「美化配置页」记得重载 WebUI 页面 |
+| 配置页样式没了        | 重跑 `python tools/inject_webui.py`；dashboard 升级会覆盖掉，改完记得 `F5` 重载 |
 
 ## 兼容性
 

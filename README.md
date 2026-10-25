@@ -4,7 +4,7 @@
 
 ![插件配置界面（开启「美化配置页」后）](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/config-panel.png)
 
-`MaiBot 1.0.0+` · `maibot-plugin-sdk 2.5.1+` · 无需额外依赖 · Windows / Linux / macOS
+`MaiBot 1.0.0+` · `maibot-plugin-sdk 2.5.1+` · 插件本体无需额外依赖 · Windows / Linux / macOS
 
 > 🤖 **本插件完全由 AI（DeepSeek V4.1 Flash）开发。**  
 > 踩到 bug、想加功能、或者觉得哪里写得不对，都欢迎去 [Issues](https://github.com/52-Moyna/maibot_plugin-Response/issues) 提。
@@ -35,7 +35,7 @@ python tools/inject_webui.py            # 注入
 python tools/inject_webui.py --remove   # 移除
 ```
 
-⚠️ **会改 dashboard 的文件，先看明白再开：** 只动 `<python-env>/Lib/site-packages/maibot_dashboard/dist/` —— 往 `index.html` 插一段带起止标记的引用，再复制两个文件进 `dist/assets/`。`--remove` 靠标记干净删掉、不碰别的；升级 dashboard 会覆盖，得重开一次。开关关着时插件加载**不碰**这些文件。
+⚠️ **会改 dashboard 的文件，先看明白再开：** 只动 `<python-env>/Lib/site-packages/maibot_dashboard/dist/` —— 往 `index.html` 插一段带起止标记的引用，再复制两个文件进 `dist/assets/`。`--remove` 靠标记干净删掉、不碰别的；升级 dashboard 会覆盖，得重开一次。开关关着时**不会写入**；要是之前开过、后来关了（包括手改配置文件后重启），启动时会顺手把标记还原掉。
 
 改完**必须重载整个 WebUI 页面**（`F5`），光刷新插件列表、切换插件都不算。
 
@@ -120,9 +120,12 @@ mode = "off（不贴表情）"
 
 网上那些对照表基本停在 221 号之前，之后 QQ 新增的一个都没有。QQ 再出新表情，重跑 `python tools/gen_face_table.py` 就更新 —— 用 NapCat 也行，脚本自带表情目录快照，不用装别的。
 
+想知道比上次多了哪些：`python tools/gen_face_table.py --diff --check`。
+
 ⚠️ 注意：
 
 - 别填表里没有的 ID，比如 `2705`、`128536` 这类十六进制值。接口会返回 `ok`，但客户端贴出来是**空白**
+- 只有「重抓表情图片」才需要 Pillow（`pip install Pillow`），`tools/fetch_face_images.py` 用；生成 ID 表和日常贴表情都不需要
 
 ## 排错
 

@@ -434,7 +434,7 @@ class ReplyMarkPlugin(MaiBotPlugin):
                     if not rule.enabled
                     else f"概率={rule.probability} 每个回{rule.count} 表情池={rule.pool or '沿用全局'}",
                 )
-        await self._sync_webui_skin(apply_only=True)
+        await self._sync_webui_skin()
 
     async def on_unload(self) -> None:
         """插件卸载时把本次运行的统计写进日志，方便回查。"""
@@ -465,16 +465,13 @@ class ReplyMarkPlugin(MaiBotPlugin):
         )
         await self._sync_webui_skin()
 
-    async def _sync_webui_skin(self, *, apply_only: bool = False) -> None:
+    async def _sync_webui_skin(self) -> None:
         """按「美化配置页」开关写入或移除样式。失败只记日志，绝不影响贴表情。
 
-        ``apply_only`` 供插件加载时使用：开关关着就什么都不做。
-        美化会改写 dashboard 的静态文件，插件不能一加载就替用户把样式拆掉，
-        只有用户自己把开关从开拨到关（配置热重载）才执行还原。
+        加载和配置热重载都走这里：开关开着就注入，关着就还原。
+        开关关着时若 dashboard 里还留着上次注入的标记（比如上次是开着、这次
+        在配置文件里手改成关），也会被清掉，保证「开关状态」和「实际样式」一致。
         """
-
-        if apply_only and not self._beautify_ui:
-            return
 
         try:
             injector = await asyncio.to_thread(_load_injector)

@@ -6,7 +6,7 @@
 
 `MaiBot 1.0.0+` · `maibot-plugin-sdk 2.5.1+` · 无需额外依赖 · Windows / Linux / macOS
 
-> 🤖 **本插件完全由 AI（DeepSeek V4.1 Flash）生成。**  
+> 🤖 **本插件完全由 AI（DeepSeek V4.1 Flash）开发。**  
 > 踩到 bug、想加功能、或者觉得哪里写得不对，都欢迎去 [Issues](https://github.com/52-Moyna/maibot_plugin-Response/issues) 提。
 
 ---
@@ -141,7 +141,9 @@ mode = "off（不贴表情）"
 
 ## 致谢
 
-感谢 [SnowLuma](https://snowluma.github.io/zh/) —— 它把 QQ 接成 OneBot v11 接口，本插件跑在上面，表情 ID 大全的数据也是用它缓存的目录整理的。
+感谢 [MaiBot](https://github.com/Mai-with-u/MaiBot) —— 它提供插件框架，本插件跑在它上面。
+
+感谢 [SnowLuma](https://snowluma.github.io/zh/) —— 它把 QQ 接成 OneBot v11 接口，贴表情走的就是这条链路，表情 ID 大全的数据也是用它缓存的目录整理的。
 
 ## 许可
 

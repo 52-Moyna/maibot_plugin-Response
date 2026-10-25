@@ -176,13 +176,12 @@ html[data-mb-plugin-config="1"]
 
 /* 可输入版本：宽度自适应、去掉原生外观、聚焦时描边 */
 html[data-mb-plugin-config="1"] .mb-slider-input {
-  width: 58px;
+  width: 60px;
   text-align: center;
   font-family: inherit;
   outline: none;
   cursor: text;
-  transition: background-color 160ms ease, border-color 160ms ease,
-    box-shadow 160ms ease, width 160ms ease;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
 html[data-mb-plugin-config="1"] .mb-slider-input:hover {
@@ -191,7 +190,6 @@ html[data-mb-plugin-config="1"] .mb-slider-input:hover {
 }
 
 html[data-mb-plugin-config="1"] .mb-slider-input:focus {
-  width: 64px;
   background: hsl(var(--card));
   border-color: hsl(var(--primary) / 0.55);
   box-shadow: 0 0 0 3px hsl(var(--primary) / 0.14);

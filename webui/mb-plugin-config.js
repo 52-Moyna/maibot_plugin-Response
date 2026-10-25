@@ -122,6 +122,7 @@
 
   function bindField(wrapper, thumb, readout) {
     if (wrapper.dataset[BOUND_FLAG] === "1") return;
+    if (wrapper.querySelector("." + INPUT_CLASS)) return; // 已经加过了
     wrapper.dataset[BOUND_FLAG] = "1";
 
     const input = document.createElement("input");
@@ -133,7 +134,9 @@
     input.value = formatValue(thumb.getAttribute("aria-valuenow"));
     input.setAttribute("aria-label", "可直接输入数值，回车生效");
 
-    readout.replaceWith(input);
+    // 只隐藏原来的只读 span，不替换它 —— 替换 React 管的节点会引发重渲染循环。
+    readout.style.display = "none";
+    readout.insertAdjacentElement("afterend", input);
 
     let busy = false;
     let queue = Promise.resolve();
@@ -201,13 +204,19 @@
     thumbs.forEach((thumb) => {
       const wrapper = thumb.closest(".space-y-2");
       if (!wrapper) return;
-      if (wrapper.dataset[BOUND_FLAG] === "1") return;
 
       const head = wrapper.querySelector(":scope > .flex.items-center.justify-between");
       if (!head) return;
       const readout = head.querySelector(":scope > span");
-      if (!readout) return; // 已经是输入框或被改过
+      const existing = wrapper.querySelector("." + INPUT_CLASS);
 
+      // 已绑定过：只需保证原 span 仍是隐藏的（React 重渲染可能把它恢复）
+      if (existing) {
+        if (readout && readout.style.display !== "none") readout.style.display = "none";
+        return;
+      }
+
+      if (!readout) return;
       bindField(wrapper, thumb, readout);
     });
   }

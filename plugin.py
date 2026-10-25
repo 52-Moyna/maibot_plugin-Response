@@ -47,6 +47,8 @@ from maibot_sdk import Field, HookHandler, MaiBotPlugin, PluginConfigBase
 from maibot_sdk.types import ErrorPolicy, HookMode, HookOrder
 
 __all__ = [
+    "EmojiSection",
+    "NetworkSection",
     "PluginSection",
     "ReplyMarkConfig",
     "ReplyMarkPlugin",
@@ -73,77 +75,113 @@ _FALLBACK_LOGGER = logging.getLogger(PLUGIN_ID)
 
 
 class PluginSection(PluginConfigBase):
-    """插件主体配置。"""
+    """贴表情的主开关与频率。引用框不受影响。"""
 
-    __ui_label__ = "回复标记插件"
+    __ui_label__ = "贴表情"
+    __ui_order__ = 0
 
-    config_version: str = Field(
-        default="0.3.0",
-        description="配置版本号，由插件维护，请勿手动修改",
-    )
     enabled: bool = Field(
         default=True,
-        description="是否启用回复标记",
-        json_schema_extra={"label": "启用插件"},
+        description="关掉之后，回复消息不会再贴任何表情",
+        json_schema_extra={"label": "启用插件", "order": 0},
     )
     react_probability: float = Field(
         default=1.0,
         ge=0.0,
         le=1.0,
         description=(
-            "每次回复贴表情的概率。1=每次都贴，0=完全不贴。"
-            "贴表情只是附加动作，没抽中时引用框和消息内容完全不受影响"
+            "1 = 每次回复都贴，0 = 完全不贴，中间值按概率。"
+            "没抽中时什么都不做，引用框与消息内容完全不受影响"
         ),
-        json_schema_extra={"label": "贴表情概率", "step": 0.05, **_SLIDER},
-    )
-    emoji_pool: list[str] = Field(
-        default_factory=lambda: [DEFAULT_EMOJI_ID],
-        description=(
-            "表情池，填 QQ 表情的 face id（十进制），可填多个，每次从池里随机抽。"
-            "478=[对的对的]、14=微笑、13=呲牙、76=赞、66=爱心、124=OK、182=笑哭。"
-            "CQ 码与 face id 大全见 " + CQ_CODE_DOC_URL + "；"
-            "查某个表情的真实 id 用 /get_msg 看 segments 里 face 段的 id。"
-            "不要填 Unicode 十六进制值（如 2705），会贴出空白"
-        ),
-        json_schema_extra={"label": "表情池"},
+        json_schema_extra={
+            "label": "贴表情概率",
+            "step": 0.05,
+            "order": 1,
+            "hint": "0 完全不贴 · 1 每次都贴",
+            **_SLIDER,
+        },
     )
     emoji_count: int = Field(
         default=1,
         ge=1,
         le=10,
+        description="每次贴几个表情；从表情池里随机抽，池子不够时按池子大小封顶",
+        json_schema_extra={
+            "label": "每次贴几个",
+            "step": 1,
+            "order": 2,
+            "hint": "随机抽取且不重复，填 1 就是只贴一个",
+            **_SLIDER,
+        },
+    )
+    config_version: str = Field(
+        default="0.4.0",
+        description="配置版本号，由插件维护，请勿手动修改",
+        json_schema_extra={"hidden": True},
+    )
+
+
+class EmojiSection(PluginConfigBase):
+    """每次发送从这些表情里随机抽。填的是 QQ 表情的 face id。"""
+
+    __ui_label__ = "表情池"
+    __ui_order__ = 1
+
+    emoji_pool: list[str] = Field(
+        default_factory=lambda: [DEFAULT_EMOJI_ID],
         description=(
-            "每次贴几个表情。从表情池里随机抽取，池子不够时按池子大小封顶；"
-            "填 1 就是只贴一个"
+            "QQ 表情的 face id（十进制），可填多个。"
+            "478=[对的对的] 14=微笑 13=呲牙 76=赞 66=爱心 124=OK 182=笑哭。"
+            "完整对照见 " + CQ_CODE_DOC_URL
         ),
-        json_schema_extra={"label": "每次贴几个", "step": 1, **_SLIDER},
+        json_schema_extra={
+            "label": "表情池",
+            "order": 0,
+            "hint": "CQ 码 / face id 大全：docs.go-cqhttp.org/cqcode · 不要填 2705 这类十六进制值（会贴出空白）",
+        },
     )
     emoji_id: str = Field(
         default=DEFAULT_EMOJI_ID,
-        description="备用表情 ID：表情池为空时用这个。一般不用管，配表情池就够了",
-        json_schema_extra={"label": "备用表情 ID"},
+        description="表情池为空时用它兜底，一般不用管",
+        json_schema_extra={"label": "备用表情 ID", "order": 1, "hint": "仅在表情池为空时生效"},
     )
+
+
+class NetworkSection(PluginConfigBase):
+    """OneBot v11 HTTP 连接信息。本机走 SnowLuma 网关时保持默认即可。"""
+
+    __ui_label__ = "连接"
+    __ui_order__ = 2
+
     host: str = Field(
         default="127.0.0.1",
-        description="OneBot v11 HTTP 服务地址；本机走 SnowLuma 网关时保持 127.0.0.1",
-        json_schema_extra={"label": "服务地址"},
+        description="OneBot v11 HTTP 服务地址",
+        json_schema_extra={"label": "服务地址", "order": 0, "hint": "本机 SnowLuma 网关保持 127.0.0.1"},
     )
     port: int = Field(
         default=DEFAULT_PORT,
-        description="OneBot v11 HTTP 服务端口；SnowLuma 默认 3000，NapCat 常见 9999",
-        json_schema_extra={"label": "服务端口", "step": 1},
+        description="OneBot v11 HTTP 服务端口",
+        json_schema_extra={
+            "label": "服务端口",
+            "step": 1,
+            "order": 1,
+            "hint": "SnowLuma 默认 3000；NapCat 常见 9999",
+        },
     )
     token: str = Field(
         default="",
-        description=(
-            "鉴权 Token。SnowLuma 严格校验「Authorization: Bearer <token>」格式，"
-            "因此这里要连 Bearer 前缀一起填，例如「Bearer abc123」"
-        ),
-        json_schema_extra={"label": "鉴权 Token"},
+        description="鉴权 Token，要连 Bearer 前缀一起填",
+        json_schema_extra={"label": "鉴权 Token", "order": 2, "hint": "格式：Bearer xxxx（SnowLuma 严格校验前缀）"},
     )
     timeout_seconds: int = Field(
         default=5,
-        description="单次贴表情请求的超时时间（秒）；超时只记日志，不影响消息本身",
-        json_schema_extra={"label": "请求超时（秒）", "step": 1},
+        description="单次贴表情请求的超时时间（秒）",
+        json_schema_extra={
+            "label": "请求超时（秒）",
+            "step": 1,
+            "order": 3,
+            "hint": "超时只记日志，不影响消息本身",
+        },
     )
 
 
@@ -151,6 +189,8 @@ class ReplyMarkConfig(PluginConfigBase):
     """插件完整配置。"""
 
     plugin: PluginSection = Field(default_factory=PluginSection)
+    emoji: EmojiSection = Field(default_factory=EmojiSection)
+    network: NetworkSection = Field(default_factory=NetworkSection)
 
 
 class ReplyMarkPlugin(MaiBotPlugin):
@@ -281,18 +321,20 @@ class ReplyMarkPlugin(MaiBotPlugin):
     def _refresh_settings(self) -> None:
         """把配置复制成实例字段，Hook 里不再反复穿透 self.config。"""
 
-        section = self.config.plugin
-        self._enabled = bool(section.enabled)
-        self._react_probability = min(1.0, max(0.0, float(section.react_probability)))
-        self._emoji_count = max(1, int(section.emoji_count))
-        self._emoji_id = str(section.emoji_id).strip() or DEFAULT_EMOJI_ID
-        pool = [str(item).strip() for item in (section.emoji_pool or [])]
+        main = self.config.plugin
+        emoji = self.config.emoji
+        network = self.config.network
+        self._enabled = bool(main.enabled)
+        self._react_probability = min(1.0, max(0.0, float(main.react_probability)))
+        self._emoji_count = max(1, int(main.emoji_count))
+        self._emoji_id = str(emoji.emoji_id).strip() or DEFAULT_EMOJI_ID
+        pool = [str(item).strip() for item in (emoji.emoji_pool or [])]
         # 去重并保留顺序；池子为空时退回备用表情 ID。
         self._emoji_pool = list(dict.fromkeys(item for item in pool if item)) or [self._emoji_id]
-        self._host = str(section.host).strip() or "127.0.0.1"
-        self._port = int(section.port)
-        self._token = str(section.token or "").strip()
-        self._timeout_seconds = max(1, int(section.timeout_seconds))
+        self._host = str(network.host).strip() or "127.0.0.1"
+        self._port = int(network.port)
+        self._token = str(network.token or "").strip()
+        self._timeout_seconds = max(1, int(network.timeout_seconds))
 
     def _draw_emojis(self) -> list[str]:
         """从表情池随机抽 emoji_count 个（不放回，池子不够就全给）。"""
@@ -337,7 +379,12 @@ class ReplyMarkPlugin(MaiBotPlugin):
             if data.get("status") == "ok":
                 return True, ""
             reason = data.get("wording") or data.get("message") or body[:200]
-            return False, str(reason)
+            reason_text = str(reason)
+            # 同一条消息被回第二次时，QQ 会报「已经设置过该表情」。
+            # 这属于幂等成功（表情本来就在上面），不该算失败刷日志。
+            if "已经设置过" in reason_text:
+                return True, ""
+            return False, reason_text
         finally:
             connection.close()
 

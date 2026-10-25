@@ -52,21 +52,56 @@ after_send  →  sent / reply_message_id   # 发送已成功，拿 ID 去贴表�
 
 ## 配置
 
+配置按用途分成三段，WebUI 里就是三张卡片：
+
 ```toml
+# 贴表情
 [plugin]
 enabled = true
-config_version = "0.3.0"
+config_version = "0.4.0"     # 内部字段，WebUI 里隐藏
+react_probability = 1.0      # 0~1，滑条
+emoji_count = 1              # 1~10，滑条
 
-react_probability = 1.0          # 0~1，滑条
-emoji_pool = ["478"]             # 表情池，可多个
-emoji_count = 1                  # 每次贴几个，滑条
-emoji_id = "478"                 # 备用：池为空时用它
+# 表情池
+[emoji]
+emoji_pool = ["478"]         # 可多个，随机抽
+emoji_id = "478"             # 池为空时兜底
 
+# 连接
+[network]
 host = "127.0.0.1"
-port = 3000                      # SnowLuma 网关；NapCat 常见 9999
-token = "Bearer xxxx"            # SnowLuma 要求连 Bearer 前缀一起写
+port = 3000                  # SnowLuma 网关；NapCat 常见 9999
+token = "Bearer xxxx"        # SnowLuma 要求连 Bearer 前缀一起写
 timeout_seconds = 5
 ```
+
+> v0.4.0 起从单段 `[plugin]` 拆成 `[plugin]` / `[emoji]` / `[network]` 三段。旧配置文件需要手动迁到新结构（值不变，只是换了段名）。
+
+## 界面上做了什么
+
+框架的插件配置页是「一张卡片堆字段」，纯靠 schema 元数据 + 一层作用域 CSS 改观感，**没有 patch 前端代码**：
+
+**字段层（插件自己能控制的）**
+
+| 手段 | 效果 |
+|---|---|
+| 三段配置 | WebUI 渲染成三张带标题和说明的卡片，不再是一整坨 |
+| `hidden: True` | `config_version` 不再是用户可见字段 |
+| `hint` | 每个控件下面一行小字说明（前端 `p.text-muted-foreground`） |
+| `x-widget: "slider"` | 概率、数量渲染成滑条（前端按 `ui_type` 分支，SDK 读 `x-widget`） |
+| `order` | 字段排序 |
+
+**样式层（`mb-plugin-config.css`，只在 `/plugin-config` 生效）**
+
+- 卡片：14px 圆角 + 双层阴影，卡片头加左侧主色竖条与淡渐变底
+- 主开关字段（带 switch 的那个）拉成通栏色块，视觉上有落脚点
+- 滑条：轨道收细到 6px，已选区间主色渐变，滑块带外发光；数值做成胶囊徽标
+- 滑条行限宽 560px，不再横贯整卡
+- 输入框：内嵌底色 + 聚焦主色描边；列表项的「添加项目」改成虚线主色按钮
+
+作用域靠 `mb-plugin-config.js` 在 `/plugin-config` 路由给 `<html>` 打 `data-mb-plugin-config="1"`，离开就摘掉 —— 所以「麦麦设置」等页面完全不受影响。全部颜色走 `hsl(var(--primary)/.12)` 这类主题变量，明暗主题自动适配。
+
+框架不给改的部分：整页布局、组件结构、字段控件种类都由 dashboard 决定，插件只能影响 schema 元数据与样式，不能替换页面本体。
 
 ### 表情 ID 怎么填
 
@@ -94,6 +129,8 @@ timeout_seconds = 5
 那是唯一准确的办法。别去抄网上的对照表——社区流传的表互相矛盾（有张表说 32 是「对勾」，QQ 官方表里 32 其实是「疑问」）。
 
 **另一个坑**：`set_msg_emoji_like` 对无效 ID 也返回 `status: ok`，光看返回值会被骗。验证要用 `get_emoji_likes` 查该消息的该 id，返回里出现 `user_id` 才算真贴上。
+
+**第三个坑**：同一条消息被回第二次、贴同一个表情时，QQ 报 `OIDB error 65002 ... 已经设置过该表情`。这是幂等成功（表情本来就在），插件已按成功处理，不刷警告。
 
 **还有**：填 `2705`、`128536` 这类 Unicode 十六进制字面值不行，会贴出空白。系统 emoji 要用码点的十进制值（✅ 是 `9989`），但表情包/系统表情用的是 face id，两套编号不通用。
 

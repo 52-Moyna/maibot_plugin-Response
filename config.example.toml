@@ -1,0 +1,23 @@
+[plugin]
+# 是否启用：回复某条消息时，在那条消息上贴一个表情回应（默认 ✅）
+enabled = true
+# 配置版本号，由插件维护，请勿手动修改
+config_version = "0.1.0"
+
+# 用表情替代引用框：
+#   true  = 只贴表情，不显示灰色引用框（推荐，最像真人）
+#   false = 引用框和表情回应同时出现
+replace_quote = true
+
+# 表情回应 ID：2705 是 ✅，128077 是 👍。填错时接口可能返回成功但不显示，改完先发一条试
+emoji_id = "2705"
+
+# OneBot v11 HTTP 服务（本机 SnowLuma 网关在 3000 端口；NapCat 常见 9999）
+host = "127.0.0.1"
+port = 3000
+
+# 鉴权头。SnowLuma 严格校验 "Authorization: Bearer <token>"，前缀要一起写
+token = "Bearer <你的 token>"
+
+# 单次贴表情请求超时（秒）
+timeout_seconds = 5

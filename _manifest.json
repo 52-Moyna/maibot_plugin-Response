@@ -1,0 +1,38 @@
+{
+  "manifest_version": 2,
+  "id": "workbuddy.reply_confirm",
+  "version": "0.1.0",
+  "name": "回复确认标记",
+  "description": "机器人回复某条消息时，自动在被回复的那条消息上贴一个表情回应（默认 ✅），群里一眼就能看出它在回谁。可选：用表情替代灰引用框，让发言更干净、不像客服。",
+  "author": {
+    "name": "workbuddy",
+    "url": "https://github.com/Mai-with-u/MaiBot"
+  },
+  "license": "MIT",
+  "urls": {
+    "repository": "https://github.com/Mai-with-u/MaiBot",
+    "homepage": "https://github.com/Mai-with-u/MaiBot"
+  },
+  "host_application": {
+    "min_version": "1.0.0",
+    "max_version": "1.99.99"
+  },
+  "sdk": {
+    "min_version": "2.5.1",
+    "max_version": "2.99.99"
+  },
+  "dependencies": [],
+  "capabilities": [],
+  "plugin_type": "extension",
+  "display": {
+    "icon": {
+      "type": "emoji",
+      "value": "✅",
+      "background": "#2f9e44"
+    }
+  },
+  "i18n": {
+    "default_locale": "zh-CN",
+    "supported_locales": ["zh-CN"]
+  }
+}

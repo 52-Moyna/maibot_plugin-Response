@@ -20,7 +20,7 @@
 
 ## 安装
 
-1. 整个目录放到 `<MaiBot>/plugins/maibot_plugin-Response/`
+1. 整个目录放到 `<MaiBot>/plugins/` 下（目录名随意，插件身份看 `_manifest.json` 里的 `id`）
 2. `cp config.example.toml config.toml`，填上网关地址和 Token
 3. 重启 MaiBot，日志出现 `回复标记插件已加载` 就成功了
 
@@ -147,4 +147,4 @@ mode = "off（不贴表情）"
 
 ## 许可
 
-MIT · 作者 **BabyQ** · 插件 ID `maibot_plugin-Response`
+MIT · 作者 **BabyQ** · 插件 ID `babyQ.maibot_reply-mark`

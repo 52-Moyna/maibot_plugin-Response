@@ -67,9 +67,9 @@ __all__ = [
 
 #: 插件 ID，必须与 ``_manifest.json`` 的 ``id`` 一致。
 #: 注意宿主校验规则 ``^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)+$``：必须含一个点或横线，
-#: 纯下划线的 ID（如 ``maibot_plugin_Response``）会被判定非法、加载失败。
+#: 纯下划线的 ID（如 ``reply_mark``）会被判定非法、加载失败。
 #: 这个值决定插件状态与统计的归属，发布后**不要改动**。
-PLUGIN_ID = "maibot_plugin-Response"
+PLUGIN_ID = "babyQ.maibot_reply-mark"
 
 #: 「对的对的」（黄脸举绿勾牌）是 QQ 的系统表情，face id 为 478。
 #: 查任意表情 id 的办法：用 OneBot 的 /get_msg 取那条消息，看 segments 里 face 段的 "id"。

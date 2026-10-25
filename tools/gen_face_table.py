@@ -33,6 +33,7 @@ em 编号，约 20KB），所以：
     python tools/gen_face_table.py                       # 自动选数据源（实时 > 快照）
     python tools/gen_face_table.py --catalog D:/x.json   # 手动指定目录文件
     python tools/gen_face_table.py --check               # 只看统计，不写文件
+    python tools/gen_face_table.py --diff --check        # 只看「比内置快照多了/少了什么」
     python tools/gen_face_table.py --update-snapshot     # 用实时数据刷新内置快照
 
 产出（默认写到插件 docs/ 下）
@@ -683,11 +684,65 @@ def render_html(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
     return html
 
 
+def diff_snapshot(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """对比实时目录与内置快照，返回 (新增, 消失) 两组行。
+
+    只在数据源是实时目录时有意义；调用方负责先判断 ``is_snapshot``。
+    """
+
+    if not SNAPSHOT_PATH.exists():
+        return [], []
+
+    snap_rows, _ = load_rows(SNAPSHOT_PATH)
+    live = {r["sid"]: r for r in rows}
+    snap = {r["sid"]: r for r in snap_rows}
+    added = [live[sid] for sid in live if sid not in snap]
+    removed = [snap[sid] for sid in snap if sid not in live]
+
+    def order(row: dict[str, Any]) -> tuple[int, int]:
+        return (0 if row["kind"] == "face" else 1, row["id"])
+
+    return sorted(added, key=order), sorted(removed, key=order)
+
+
+def print_diff(added: list[dict[str, Any]], removed: list[dict[str, Any]], limit: int = 40) -> None:
+    """把差异打成「比内置快照新增 / 消失」。"""
+
+    print()
+    if not added and not removed:
+        print("对比内置快照：无变化。")
+        return
+
+    print(f"对比内置快照：新增 {len(added)} 个，消失 {len(removed)} 个。")
+
+    if added:
+        print("  新增：")
+        for row in added[:limit]:
+            tag = "face id" if row["kind"] == "face" else "码点"
+            print(f"    + {row['name']}  {tag}={row['fill']}  [{row['pack']}]")
+        if len(added) > limit:
+            print(f"    …… 还有 {len(added) - limit} 个")
+
+    if removed:
+        print("  消失（多半是限时包过期）：")
+        for row in removed[:limit]:
+            print(f"    - {row['name']}  {row['sid']}  [{row['pack']}]")
+        if len(removed) > limit:
+            print(f"    …… 还有 {len(removed) - limit} 个")
+
+    print("  想让内置快照跟上：python tools/gen_face_table.py --update-snapshot")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="生成 QQ 表情 ID 大全")
     parser.add_argument("--catalog", help="sys-face-catalog.json 路径")
     parser.add_argument("--out-dir", help="输出目录，默认插件 docs/")
     parser.add_argument("--check", action="store_true", help="只打印统计，不写文件")
+    parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="对比内置快照，列出新增/消失的表情（搭配 --check 只看不写）",
+    )
     parser.add_argument(
         "--update-snapshot",
         action="store_true",
@@ -732,6 +787,11 @@ def main() -> int:
         print("提示：没找到 SnowLuma 的实时目录，用的是插件自带快照 —— 表照样可用，")
         print("      NapCat / Lagrange / LLOneBot 用户不用装 SnowLuma。")
         print("      QQ 再出新表情时，需要有 SnowLuma 的环境跑 --update-snapshot 刷新。")
+        if args.diff:
+            print()
+            print("对比内置快照：当前数据源就是快照本身，无从对比。")
+    elif args.diff:
+        print_diff(*diff_snapshot(rows))
 
     if args.check:
         return 0

@@ -1,9 +1,9 @@
 {
   "manifest_version": 2,
   "id": "workbuddy.reply_confirm",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "name": "回复标记插件",
-  "description": "机器人回复某条消息时，自动在被回复的那条消息上贴表情回应（默认 [对的对的]），群里一眼就能看出它在回谁。支持贴表情概率、一次贴多个、表情池随机抽，并可选替代灰引用框让发言更干净。",
+  "description": "机器人回复某条消息时，额外在被回复的那条消息上贴表情回应（默认 [对的对的]），群里一眼就能看出它在回谁。引用框保持不变，只是附加标记。支持贴表情概率（滑条）、一次贴多个、表情池随机抽。",
   "author": {
     "name": "workbuddy",
     "url": "https://github.com/Mai-with-u/MaiBot"

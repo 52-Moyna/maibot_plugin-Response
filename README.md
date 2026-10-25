@@ -1,26 +1,22 @@
 # 回复标记插件（Reply Mark）
 
-机器人回复某条消息时，**自动在被回复的那条消息上贴表情回应**（默认 `[对的对的]`），群里一眼就能看出它在回谁。
+机器人回复某条消息时，**额外在被回复的那条消息上贴表情回应**（默认 `[对的对的]`），群里一眼就能看出它在回谁。
 
-## 解决什么问题
+## 定位：只加标记，不替东西
 
-MaiBot 引用回复时，会在自己的消息上方挂一条灰色引用框。全天下来每条都挂，一屏全是灰块，观感像客服系统。
+引用框**原样保留**。贴表情是附加信息，不是替代品——起因是「回复某条消息」这件事在群里不够显眼，加一个表情回应等于给别人一个提示：我回的是这条。
 
-这个插件换成 QQ 原生的「表情回应」：一个表情挂在被回复的那条消息上，不占屏、不打断阅读，还能看出回的是哪条。
+所以插件不碰 `set_reply`、不改消息内容、不改发送参数。它坏了最多是「没贴上表情」，不可能影响消息本身。
 
 ## 行为
 
 | 配置 | 效果 |
 |---|---|
-| `replace_quote = true`（默认） | 只贴表情，**不显示引用框** |
-| `replace_quote = false` | 引用框和表情都保留 |
 | `react_probability = 1.0`（默认） | 每次都贴 |
 | `react_probability = 0.5` | 一半概率贴 |
-| `react_probability = 0` | 完全不贴（关闭贴表情） |
+| `react_probability = 0` | 完全不贴 |
 
-没有引用目标的消息（没被要求回复某条）不受影响，正常发送。
-
-**概率没抽中时，本插件也不摘引用框**——只摘框不贴表情会让那条消息失去所有指向，等于凭空说话。所以「不贴」就等于「这条完全不介入」。
+引用框、消息内容、发送链路在任何取值下都不变。没抽中 = 什么都不发生，不是「摘掉标记」。
 
 ## 表情池与多表情
 
@@ -33,34 +29,37 @@ emoji_count = 1                    # 每次贴几个
 - 池子比 `emoji_count` 小的时候按池子大小封顶，不会重复贴同一个。
 - `emoji_count = 3` + 池子 3 个 = 三个全贴上；池子 5 个则每轮随机挑 3 个。
 
+## WebUI 配置
+
+`react_probability` 与 `emoji_count` 在 WebUI 里是**滑条**，靠字段声明 `json_schema_extra={"x-widget": "slider", "step": ...}` 实现：
+
+- 仪表盘渲染字段时按 `ui_type` 分支（`plugin-config-*.js` 里 `switch(s.ui_type)` → `case "slider"`）；
+- SDK 侧 `ui_type = json_extra.get("x-widget") or _default_ui_type(field_type)`（`maibot_sdk/config.py:324`）；
+- 🔑 整数/浮点字段**不会**自动变滑条，必须显式给 `x-widget`。
+
 ## 原理
 
-宿主在两个发送钩子上都提供了「被引用消息 ID」，且插入引用组件发生在 `before_send` 之后：
+只挂一个钩子：
 
 ```python
 # src/services/send_service.py
-before_send  →  掷骰子 + 抽表情 + 可改写 set_reply，reply_message_id 不动
-after_send   →  sent / reply_message_id                  # 拿 ID 去贴表情
+after_send  →  sent / reply_message_id   # 发送已成功，拿 ID 去贴表情
 ```
 
-插件在 `before_send` 里完成决策：抽中就把 `set_reply` 置 `False`（引用框不插入），把本次要贴的表情暂存起来；`after_send` 确认发送成功后取出暂存的表情，逐个调 OneBot 的 `set_msg_emoji_like`。
+`after_send` 里掷骰子 → 抽表情 → 逐个调 OneBot 的 `set_msg_emoji_like`。HTTP 调用用 `asyncio.to_thread` 包住，不阻塞事件循环。
 
-暂存按 `reply_message_id` 排队并带 60 秒过期，同一目标连续回多次也不会串。
-
-全程不拦截、不改写消息内容；任一步失败只记日志，不影响消息发送。
+全程以 `HookMode.OBSERVE` 注册，不回传任何修改。
 
 ## 配置
 
 ```toml
 [plugin]
 enabled = true
-config_version = "0.2.0"
+config_version = "0.3.0"
 
-react_probability = 1.0          # 0~1，0 = 不贴
-replace_quote = true
-
+react_probability = 1.0          # 0~1，滑条
 emoji_pool = ["478"]             # 表情池，可多个
-emoji_count = 1                  # 每次贴几个
+emoji_count = 1                  # 每次贴几个，滑条
 emoji_id = "478"                 # 备用：池为空时用它
 
 host = "127.0.0.1"
@@ -108,4 +107,5 @@ timeout_seconds = 5
 ## 已知情况
 
 - 与「麦麦贴表情」（`davidblackcn.maibot-message-react-plugin`）不冲突，但两者都会贴表情：那个是按概率主动贴别人的消息，本插件是确定性地贴「被回复的那条」。同群同时开会出现两套表情回应。
-- 插件 ID 仍是 `workbuddy.reply_confirm`（改名会丢插件状态与已生成的配置），只有显示名改成「回复标记插件」。
+- 插件 ID 仍是 `workbuddy.reply_confirm`（改名会丢插件状态与已生成的配置），只有显示名是「回复标记插件」。
+- v0.1.0/0.2.0 的「用表情替代引用框」（`replace_quote`）已在 0.3.0 移除：引用框不再被摘掉。

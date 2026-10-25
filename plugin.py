@@ -1,19 +1,18 @@
 """回复标记插件（Reply Mark）—— MaiBot 插件。
 
-机器人回复某条消息时，被回复的那条消息上会自动多出表情回应（默认「对的对的」），
-群里一眼就知道它在回谁，不用挂着灰引用框。
+机器人在回复某条消息时，**额外**在被回复的那条消息上贴表情回应（默认「对的对的」），
+让人一眼看出它在回谁。引用框照原样保留 —— 贴表情只是附加信息，不替掉任何东西。
 
-实现走宿主两个发送钩子，不改主程序、不拦截消息内容：
+实现只有一个钩子：
 
-- ``send_service.before_send``：在插入引用组件**之前**触发。这里完成两件事——
-  ① 按 ``react_probability`` 掷骰子决定这次贴不贴表情（不贴就一并放弃摘引用框，
-  否则那条消息既没有引用框也没有标记，等于凭空说话）；
-  ② 决定贴时，从表情池里抽 ``emoji_count`` 个表情暂存，并把 ``set_reply`` 改成
-  ``False`` 摘掉引用框；``reply_message_id`` 不碰，宿主会照原样继续往下传。
-- ``send_service.after_send``：平台确认发送成功后触发，带 ``sent`` 与
-  ``reply_message_id``。这里取出暂存的表情，逐个调 OneBot 的 ``set_msg_emoji_like``。
+- ``send_service.after_send``：平台确认发送成功后触发，带 ``sent`` 与 ``reply_message_id``。
+  这里按 ``react_probability`` 掷骰子、从 ``emoji_pool`` 抽 ``emoji_count`` 个表情，
+  逐个调 OneBot 的 ``set_msg_emoji_like``。
 
-因此「贴表情」与「引用框」是解耦的：有引用目标就有表情标记，是否显示灰引用框单独配置。
+因为不改任何发送参数（不碰 ``set_reply``），所以：
+
+- 引用框、消息内容、发送链路全部保持宿主原样；
+- 插件出问题最多是「没贴上表情」，不可能影响消息本身。
 
 表情 ID 说明（``emoji_pool`` 里填的是 QQ 表情的 **face id**，十进制）：
 
@@ -31,9 +30,7 @@
 
 宿主契约（MaiBot 1.0.0+ / maibot-plugin-sdk 2.x）：
 
-- 两个 Hook 都允许修改 kwargs，``before_send`` 以 ``HookMode.BLOCKING`` 注册并在
-  ``modified_kwargs`` 回传改写后的参数；
-- ``after_send`` 只观察，不回传修改；
+- ``after_send`` 以 ``HookMode.OBSERVE`` 注册，只观察、不回传修改；
 - 任一环节失败都只记日志、放行，绝不影响消息发送本身。
 """
 
@@ -45,7 +42,6 @@ import http.client
 import json
 import logging
 import random
-import time
 
 from maibot_sdk import Field, HookHandler, MaiBotPlugin, PluginConfigBase
 from maibot_sdk.types import ErrorPolicy, HookMode, HookOrder
@@ -70,8 +66,8 @@ CQ_CODE_DOC_URL = "https://docs.go-cqhttp.org/cqcode/"
 #: SnowLuma / NapCat 的 OneBot v11 HTTP 默认端口。
 DEFAULT_PORT = 3000
 
-#: 暂存记录的存活时长（秒）。超时未等到 after_send 就丢弃，避免越积越多。
-_PENDING_TTL_SECONDS = 60.0
+#: 让 WebUI 把这个字段渲染成滑条（前端按 ui_type 分支，SDK 侧读 x-widget）。
+_SLIDER = {"x-widget": "slider"}
 
 _FALLBACK_LOGGER = logging.getLogger(PLUGIN_ID)
 
@@ -82,7 +78,7 @@ class PluginSection(PluginConfigBase):
     __ui_label__ = "回复标记插件"
 
     config_version: str = Field(
-        default="0.2.0",
+        default="0.3.0",
         description="配置版本号，由插件维护，请勿手动修改",
     )
     enabled: bool = Field(
@@ -95,18 +91,10 @@ class PluginSection(PluginConfigBase):
         ge=0.0,
         le=1.0,
         description=(
-            "每次回复贴表情的概率，0~1。1=每次都贴，0.5=一半概率，0=完全不贴。"
-            "注意：没抽中时本插件也不会去摘引用框，那条消息保持宿主原样"
+            "每次回复贴表情的概率。1=每次都贴，0=完全不贴。"
+            "贴表情只是附加动作，没抽中时引用框和消息内容完全不受影响"
         ),
-        json_schema_extra={"label": "贴表情概率", "step": 0.1},
-    )
-    replace_quote: bool = Field(
-        default=True,
-        description=(
-            "开启后只用表情回应标记回复目标，不再插入灰色引用框；"
-            "关闭则两者都保留（引用框 + 表情回应同时出现）"
-        ),
-        json_schema_extra={"label": "用表情替代引用框"},
+        json_schema_extra={"label": "贴表情概率", "step": 0.05, **_SLIDER},
     )
     emoji_pool: list[str] = Field(
         default_factory=lambda: [DEFAULT_EMOJI_ID],
@@ -127,13 +115,11 @@ class PluginSection(PluginConfigBase):
             "每次贴几个表情。从表情池里随机抽取，池子不够时按池子大小封顶；"
             "填 1 就是只贴一个"
         ),
-        json_schema_extra={"label": "每次贴几个", "step": 1},
+        json_schema_extra={"label": "每次贴几个", "step": 1, **_SLIDER},
     )
     emoji_id: str = Field(
         default=DEFAULT_EMOJI_ID,
-        description=(
-            "备用表情 ID：表情池为空时用这个。一般不用管，配表情池就够了"
-        ),
+        description="备用表情 ID：表情池为空时用这个。一般不用管，配表情池就够了",
         json_schema_extra={"label": "备用表情 ID"},
     )
     host: str = Field(
@@ -168,14 +154,13 @@ class ReplyMarkConfig(PluginConfigBase):
 
 
 class ReplyMarkPlugin(MaiBotPlugin):
-    """给被回复消息贴表情的插件。"""
+    """给被回复消息贴表情的插件（纯附加，不动引用框）。"""
 
     config_model = ReplyMarkConfig
 
     def __init__(self) -> None:
         super().__init__()
         self._enabled: bool = True
-        self._replace_quote: bool = True
         self._react_probability: float = 1.0
         self._emoji_pool: list[str] = [DEFAULT_EMOJI_ID]
         self._emoji_count: int = 1
@@ -184,14 +169,10 @@ class ReplyMarkPlugin(MaiBotPlugin):
         self._port: int = DEFAULT_PORT
         self._token: str = ""
         self._timeout_seconds: int = 5
-        # 暂存：reply_message_id -> 该次发送要贴的表情列表（可能同一目标回多次，用列表排队）。
-        self._pending: dict[str, list[list[str]]] = {}
-        self._pending_at: dict[str, float] = {}
         # 轻量统计，只进日志，不落盘。
-        self._stripped_total: int = 0
         self._reacted_total: int = 0
-        self._failed_total: int = 0
         self._skipped_total: int = 0
+        self._failed_total: int = 0
         self._last_error: str = ""
 
     # ------------------------------------------------------------------ #
@@ -202,9 +183,8 @@ class ReplyMarkPlugin(MaiBotPlugin):
 
         self._refresh_settings()
         self._logger().info(
-            "回复标记插件已加载：enabled=%s replace_quote=%s 概率=%s 表情池=%s 每个回%d 网关=%s:%d",
+            "回复标记插件已加载：enabled=%s 概率=%s 表情池=%s 每个回%d 网关=%s:%d（引用框不摘）",
             self._enabled,
-            self._replace_quote,
             self._react_probability,
             self._emoji_pool,
             self._emoji_count,
@@ -216,8 +196,7 @@ class ReplyMarkPlugin(MaiBotPlugin):
         """插件卸载时把本次运行的统计写进日志，方便回查。"""
 
         self._logger().info(
-            "回复标记插件已卸载：摘引用 %d 次、贴表情 %d 次、抽未中 %d 次、失败 %d 次%s",
-            self._stripped_total,
+            "回复标记插件已卸载：贴表情 %d 次、抽未中 %d 次、失败 %d 次%s",
             self._reacted_total,
             self._skipped_total,
             self._failed_total,
@@ -230,10 +209,9 @@ class ReplyMarkPlugin(MaiBotPlugin):
         del config_data
         self._refresh_settings()
         self._logger().info(
-            "回复标记插件配置已更新：scope=%s version=%s replace_quote=%s 概率=%s 表情池=%s 每个回%d",
+            "回复标记插件配置已更新：scope=%s version=%s 概率=%s 表情池=%s 每个回%d",
             scope,
             version,
-            self._replace_quote,
             self._react_probability,
             self._emoji_pool,
             self._emoji_count,
@@ -243,46 +221,9 @@ class ReplyMarkPlugin(MaiBotPlugin):
     # 核心 Hook
     # ------------------------------------------------------------------ #
     @HookHandler(
-        "send_service.before_send",
-        name="mark_before_send",
-        description="掷骰子决定这次贴不贴表情，决定贴时摘掉引用框并暂存要贴的表情",
-        mode=HookMode.BLOCKING,
-        order=HookOrder.NORMAL,
-        error_policy=ErrorPolicy.SKIP,
-    )
-    async def mark_before_send(self, **kwargs: Any) -> dict[str, Any]:
-        """在插入引用组件之前做决策，reply_message_id 原样保留给 after_send。"""
-
-        try:
-            if not self._enabled:
-                return {"action": "continue"}
-            reply_message_id = str(kwargs.get("reply_message_id") or "").strip()
-            if not reply_message_id:
-                # 没有引用目标就没有可标记的对象，保持宿主原有行为。
-                return {"action": "continue"}
-            # 掷骰子。没抽中就整条消息都不动 —— 只摘引用框不贴表情会让消息失去所有指向。
-            if self._react_probability <= 0:
-                self._skipped_total += 1
-                return {"action": "continue"}
-            if self._react_probability < 1.0 and random.random() > self._react_probability:
-                self._skipped_total += 1
-                return {"action": "continue"}
-            emojis = self._draw_emojis()
-            self._remember_pending(reply_message_id, emojis)
-            if not self._replace_quote or not kwargs.get("set_reply"):
-                return {"action": "continue"}
-            modified_kwargs = dict(kwargs)
-            modified_kwargs["set_reply"] = False
-            self._stripped_total += 1
-            return {"action": "continue", "modified_kwargs": modified_kwargs}
-        except Exception as exc:  # noqa: BLE001 - 摘引用框失败必须放行，不能阻断发送
-            self._logger().warning("摘引用框异常，本次保持原样：%s", exc)
-            return {"action": "continue"}
-
-    @HookHandler(
         "send_service.after_send",
         name="mark_after_send",
-        description="给被回复的消息贴表情回应",
+        description="给被回复的消息贴表情回应（引用框保持不变）",
         mode=HookMode.OBSERVE,
         order=HookOrder.NORMAL,
         error_policy=ErrorPolicy.SKIP,
@@ -298,10 +239,13 @@ class ReplyMarkPlugin(MaiBotPlugin):
             reply_message_id = str(kwargs.get("reply_message_id") or "").strip()
             if not reply_message_id:
                 return
-            emojis = self._take_pending(reply_message_id)
-            if not emojis:
-                # before_send 没抽中，或这条发送不是本插件标记的那次。
+            if self._react_probability <= 0:
+                self._skipped_total += 1
                 return
+            if self._react_probability < 1.0 and random.random() > self._react_probability:
+                self._skipped_total += 1
+                return
+            emojis = self._draw_emojis()
             # HTTP 调用是阻塞的，放到线程里，避免占住事件循环。
             ok_count, detail = await asyncio.to_thread(
                 self._set_emoji_likes, reply_message_id, emojis
@@ -339,7 +283,6 @@ class ReplyMarkPlugin(MaiBotPlugin):
 
         section = self.config.plugin
         self._enabled = bool(section.enabled)
-        self._replace_quote = bool(section.replace_quote)
         self._react_probability = min(1.0, max(0.0, float(section.react_probability)))
         self._emoji_count = max(1, int(section.emoji_count))
         self._emoji_id = str(section.emoji_id).strip() or DEFAULT_EMOJI_ID
@@ -359,39 +302,6 @@ class ReplyMarkPlugin(MaiBotPlugin):
         if count >= len(pool):
             return list(pool)
         return random.sample(pool, count)
-
-    def _prune_pending(self) -> None:
-        """清掉超时还没等到 after_send 的暂存记录。"""
-
-        now = time.monotonic()
-        stale = [
-            key
-            for key, stamp in self._pending_at.items()
-            if now - stamp > _PENDING_TTL_SECONDS
-        ]
-        for key in stale:
-            self._pending.pop(key, None)
-            self._pending_at.pop(key, None)
-
-    def _remember_pending(self, message_id: str, emojis: list[str]) -> None:
-        """记住这次发送要贴的表情，等 after_send 来取。"""
-
-        self._prune_pending()
-        self._pending.setdefault(message_id, []).append(list(emojis))
-        self._pending_at[message_id] = time.monotonic()
-
-    def _take_pending(self, message_id: str) -> list[str] | None:
-        """取出最早一条暂存表情；没有就返回 None。"""
-
-        self._prune_pending()
-        entries = self._pending.get(message_id)
-        if not entries:
-            return None
-        emojis = entries.pop(0)
-        if not entries:
-            self._pending.pop(message_id, None)
-            self._pending_at.pop(message_id, None)
-        return emojis
 
     def _set_emoji_likes(self, message_id: str, emojis: list[str]) -> tuple[int, str]:
         """逐个调用 set_msg_emoji_like，返回 (成功个数, 最后一条错误详情)。"""

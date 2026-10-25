@@ -103,6 +103,34 @@ timeout_seconds = 5
 
 框架不给改的部分：整页布局、组件结构、字段控件种类都由 dashboard 决定，插件只能影响 schema 元数据与样式，不能替换页面本体。
 
+## 数值可以手动填
+
+框架把滑条右边的数值渲染成只读 `<span>`，改文本不会写回配置。`mb-plugin-config.js` 把它换成真输入框：**输入数字 → 回车或失焦生效，滑条同步移动**。
+
+实现要点：
+
+- **输入 → 滑条**：不是直接改 DOM，而是给滑条 thumb 派发键盘事件（`Home` / `PageUp` / `ArrowRight` / `ArrowLeft`），驱动框架自己的 onChange ⇒ 滑条位置和配置值一起变，保存才有效。
+- **滑条 → 输入框**：`MutationObserver` 监听 thumb 的 `aria-valuenow`，拖完自动回填。
+- 超范围自动夹到 `min`/`max`；小数按步长量化；连续输入排队执行，取最后一次。
+- 🔴 **踩过的坑**：Radix 的 `aria-valuenow` 是**异步**更新的。按完键立刻读拿到的是旧值，第一版就是因此"填 4 变成 2"。必须每次按键后等一帧（`requestAnimationFrame` + `setTimeout`）再读；末尾再加一段收敛校验兜浮点误差。
+
+## 跨平台（Windows / Linux / macOS）
+
+**插件本体零平台依赖**：只用了 `http.client`、`asyncio`、`json`、`logging`，没有任何路径硬编码、注册表或 shell 调用，Linux 上行为完全一致。
+
+**界面美化是注入到 dashboard 包里的**，需要在目标机器上执行一次：
+
+```bash
+python tools/inject_webui.py            # 注入 / 更新
+python tools/inject_webui.py --check    # 只看状态
+python tools/inject_webui.py --remove   # 卸载（保留资源文件）
+```
+
+- 必须在 **MaiBot 实际运行所用的 Python 环境**里跑。脚本靠 `import maibot_dashboard` 定位 `dist` 目录，不写死路径，所以 Windows 一键包、Linux venv、系统 Python 都能用。
+- 幂等：重复执行只刷新 `?v=` 时间戳（防止浏览器强缓存旧文件），不会重复插入标签。
+- Linux 如果 dashboard 装在系统目录（如 `/usr/lib/python3/dist-packages`），写入可能需要 `sudo`，或改用 venv 安装。
+- 🔴 **升级 `maibot_dashboard` 包会替换整个 dist，注入内容会丢**，升级后重跑一次即可。
+- 资源正本在本仓库 `webui/` 下，页面效果只作用于 `/plugin-config`，不影响其它页面。
 ### 表情 ID 怎么填
 
 填 **QQ 表情的 face id**（就是消息里 `[xxx]` 那个表情的编号）：

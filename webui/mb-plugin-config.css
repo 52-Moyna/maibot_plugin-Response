@@ -1,0 +1,265 @@
+/* ============================================================
+   插件配置页美化 —— mb-plugin-config.css
+   作用域：html[data-mb-plugin-config="1"]（由 mb-plugin-config.js 在
+   /plugin-config 路由上打标），因此不会影响「麦麦设置」等其它页面。
+
+   所有颜色都走主题变量（HSL 三元组），明暗主题自动适配。
+   锚点全部用框架的 data-dashboard-* 属性，不依赖 Tailwind 类名顺序。
+   ============================================================ */
+
+/* ---------- 1. 卡片：更柔和的圆角 + 层次阴影 ---------- */
+html[data-mb-plugin-config="1"] [data-dashboard-card="true"] {
+  border-radius: 14px;
+  border-color: hsl(var(--border) / 0.75);
+  box-shadow:
+    0 1px 2px hsl(var(--foreground) / 0.04),
+    0 10px 30px -24px hsl(var(--foreground) / 0.45);
+  overflow: hidden;
+  transition: box-shadow 220ms ease, border-color 220ms ease;
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card="true"]:hover {
+  border-color: hsl(var(--border));
+}
+
+/* ---------- 2. 卡片头：左侧主色竖条 + 淡渐变底 ---------- */
+html[data-mb-plugin-config="1"] [data-dashboard-card-header="true"] {
+  position: relative;
+  padding: 13px 18px 11px 20px !important;
+  background: linear-gradient(
+    100deg,
+    hsl(var(--primary) / 0.07) 0%,
+    hsl(var(--primary) / 0.02) 42%,
+    transparent 72%
+  );
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-header="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.9),
+    hsl(var(--primary) / 0.25)
+  );
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-header="true"]:hover {
+  background: linear-gradient(
+    100deg,
+    hsl(var(--primary) / 0.1) 0%,
+    hsl(var(--primary) / 0.03) 42%,
+    transparent 72%
+  ) !important;
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-title="true"] {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: hsl(var(--foreground) / 0.92);
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-header="true"] > .text-muted-foreground {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground) / 0.92);
+  margin-top: 3px;
+  margin-left: 30px;
+}
+
+/* ---------- 3. 卡片内容：网格间距与底色 ---------- */
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] {
+  padding: 16px 18px 18px !important;
+  gap: 15px 20px;
+}
+
+/* ---------- 4. 字段标签与说明 ---------- */
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] label {
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: hsl(var(--foreground) / 0.82);
+}
+
+/* 带开关的字段（一般是主开关）单独做成一条通栏，视觉上有落脚点 */
+html[data-mb-plugin-config="1"]
+  [data-dashboard-card-content="true"]
+  > div:has([data-dashboard-switch]) {
+  grid-column: 1 / -1;
+  padding: 9px 13px;
+  border-radius: 11px;
+  border: 1px solid hsl(var(--primary) / 0.16);
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary) / 0.07),
+    hsl(var(--primary) / 0.03) 60%,
+    transparent
+  );
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] p.text-muted-foreground {
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground) / 0.9);
+  margin-top: 1px;
+}
+
+/* ---------- 5. 滑条：轨道 + 已选区间 + 滑块 ---------- */
+html[data-mb-plugin-config="1"] [data-dashboard-slider-track="true"] {
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(var(--primary) / 0.13);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.08);
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-slider-range="true"] {
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary) / 0.55) 0%,
+    hsl(var(--primary) / 0.88) 100%
+  );
+}
+
+/* 滑条不要横贯整张卡，收窄一点更好看 */
+html[data-mb-plugin-config="1"]
+  [data-dashboard-card-content="true"]
+  > div:has([data-dashboard-slider]) {
+  max-width: 560px;
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-slider-thumb="true"] {
+  border-width: 2.5px;
+  border-color: hsl(var(--primary));
+  background: hsl(var(--card));
+  box-shadow:
+    0 1px 4px hsl(var(--foreground) / 0.22),
+    0 0 0 4px hsl(var(--primary) / 0.1);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-slider-thumb="true"]:hover,
+html[data-mb-plugin-config="1"] [data-dashboard-slider-thumb="true"]:focus-visible {
+  box-shadow:
+    0 1px 4px hsl(var(--foreground) / 0.25),
+    0 0 0 6px hsl(var(--primary) / 0.16);
+}
+
+/* 滑条右侧的数值读数，做成小徽标；JS 会把它换成可输入的 .mb-slider-input */
+html[data-mb-plugin-config="1"]
+  [data-dashboard-card-content="true"]
+  .flex.items-center.justify-between
+  > span.text-muted-foreground,
+html[data-mb-plugin-config="1"]
+  [data-dashboard-card-content="true"]
+  .flex.items-center.justify-between
+  > .mb-slider-input {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary) / 0.18);
+}
+
+/* 可输入版本：宽度自适应、去掉原生外观、聚焦时描边 */
+html[data-mb-plugin-config="1"] .mb-slider-input {
+  width: 58px;
+  text-align: center;
+  font-family: inherit;
+  outline: none;
+  cursor: text;
+  transition: background-color 160ms ease, border-color 160ms ease,
+    box-shadow 160ms ease, width 160ms ease;
+}
+
+html[data-mb-plugin-config="1"] .mb-slider-input:hover {
+  background: hsl(var(--primary) / 0.14);
+  border-color: hsl(var(--primary) / 0.3);
+}
+
+html[data-mb-plugin-config="1"] .mb-slider-input:focus {
+  width: 64px;
+  background: hsl(var(--card));
+  border-color: hsl(var(--primary) / 0.55);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.14);
+}
+
+/* ---------- 6. 开关：开态外发光 ---------- */
+html[data-mb-plugin-config="1"] [data-dashboard-switch="true"] {
+  transition: box-shadow 180ms ease, background-color 180ms ease;
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-switch="true"][data-state="checked"] {
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
+}
+
+/* ---------- 7. 文本输入：内嵌感 + 聚焦高亮 ---------- */
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] [data-dashboard-input="true"] {
+  border-radius: 9px;
+  background: hsl(var(--muted) / 0.3);
+  border-color: hsl(var(--border) / 0.9);
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] [data-dashboard-input="true"]:hover {
+  background: hsl(var(--muted) / 0.48);
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] [data-dashboard-input="true"]:focus-visible {
+  background: hsl(var(--card));
+  border-color: hsl(var(--primary) / 0.55);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
+  outline: none;
+}
+
+/* ---------- 8. 列表编辑器（表情池）：每项做成一个小胶囊行 ---------- */
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] .space-y-2 > .space-y-2 > .group {
+  padding: 3px 6px 3px 2px;
+  border-radius: 10px;
+  transition: background-color 160ms ease;
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] .space-y-2 > .space-y-2 > .group:hover {
+  background: hsl(var(--primary) / 0.045);
+}
+
+/* 「添加项目」按钮：虚线样式，主色文字 */
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] .dashboard-button--outline {
+  border-radius: 9px;
+  border-style: dashed;
+  border-color: hsl(var(--primary) / 0.28);
+  color: hsl(var(--primary) / 0.92);
+  background: hsl(var(--primary) / 0.03);
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] .dashboard-button--outline:hover {
+  background: hsl(var(--primary) / 0.08);
+  border-color: hsl(var(--primary) / 0.45);
+  color: hsl(var(--primary));
+}
+
+/* ---------- 9. 窄屏收起细节 ---------- */
+@media (max-width: 1023px) {
+  html[data-mb-plugin-config="1"] [data-dashboard-card-content="true"] {
+    padding: 14px !important;
+    gap: 13px;
+  }
+
+  html[data-mb-plugin-config="1"] [data-dashboard-card-header="true"] {
+    padding: 12px 14px 10px 16px !important;
+  }
+}

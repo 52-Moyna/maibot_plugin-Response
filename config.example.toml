@@ -19,7 +19,8 @@ beautify_ui = false
 [emoji]
 # QQ 表情的 face id（十进制），可填多个，每次随机抽
 #   478 = [对的对的]（默认）  14 = 微笑  13 = 呲牙  76 = 赞  66 = 爱心  124 = OK  182 = 笑哭  32 = 疑问
-# CQ 码 / face id 大全：https://docs.go-cqhttp.org/cqcode/
+# 完整 face id 表：插件 docs/qq-face-ids.md（299 个，含 190 个新版）
+# 在线速查器（搜索/筛选/一键复制）：https://52-moyna.github.io/maibot_plugin-Response/face-lookup.html
 # 查某个表情的真实 id：用 /get_msg 取那条消息，看 segments 里 face 段的 "id"
 # 注意：不要填 2705 这类 Unicode 十六进制值，接口会返回 ok 但客户端贴出来是空白
 emoji_pool = ["478"]

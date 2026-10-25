@@ -8,6 +8,8 @@
 - ``send_service.after_send``：平台确认发送成功后触发，带 ``sent`` 与 ``reply_message_id``。
   这里按 ``react_probability`` 掷骰子、从 ``emoji_pool`` 抽 ``emoji_count`` 个表情，
   逐个调 OneBot 的 ``set_msg_emoji_like``。
+- 分群规则（``[group].rules``）：写到的群按本群设置跑（概率/个数/表情池），
+  没写到的群回落全局；``mode=off`` 的群直接跳过。
 
 因为不改任何发送参数（不碰 ``set_reply``），所以：
 
@@ -27,7 +29,7 @@
 ``status: ok``，但客户端贴出来是空白。要验证真贴上了，用 OneBot 的
 ``/get_emoji_likes`` 查那条消息。
 
-表情 CQ 码 / face id 大全：https://docs.go-cqhttp.org/cqcode/
+表情 face id 大全：见插件 ``docs/qq-face-ids.md``（``tools/gen_face_table.py`` 生成）。
 
 查任意表情真实 id 的办法：用 ``/get_msg`` 取一条带该表情的消息，看 segments 里
 ``face`` 段的 ``"id"``。
@@ -75,8 +77,12 @@ PLUGIN_ID = "babyQ.maibot_reply-mark"
 #: 查任意表情 id 的办法：用 OneBot 的 /get_msg 取那条消息，看 segments 里 face 段的 "id"。
 DEFAULT_EMOJI_ID = "478"
 
-#: 表情 CQ 码 / face id 大全（写进配置说明，方便直接查）。
-CQ_CODE_DOC_URL = "https://docs.go-cqhttp.org/cqcode/"
+#: 插件自带的表情 ID 大全。网上流传的 go-cqhttp 对照表只到 221 号，新版一个都没有，
+#: 所以这里指向自己维护的表（docs/qq-face-ids.md 由 tools/gen_face_table.py 生成）。
+FACE_TABLE_URL = "https://github.com/52-Moyna/maibot_plugin-Response/blob/main/docs/qq-face-ids.md"
+
+#: 上面那张表的网页版，能搜索、筛选、点一下复制 id。
+FACE_LOOKUP_URL = "https://52-moyna.github.io/maibot_plugin-Response/face-lookup.html"
 
 #: SnowLuma / NapCat 的 OneBot v11 HTTP 默认端口。
 DEFAULT_PORT = 3000
@@ -221,12 +227,12 @@ class EmojiSection(PluginConfigBase):
         description=(
             "QQ 表情的 face id（十进制），可填多个。"
             "478=[对的对的] 14=微笑 13=呲牙 76=赞 66=爱心 124=OK 182=笑哭。"
-            "完整对照见 " + CQ_CODE_DOC_URL
+            "完整对照见 " + FACE_TABLE_URL
         ),
         json_schema_extra={
             "label": "表情池",
             "order": 0,
-            "hint": "CQ 码 / face id 大全：docs.go-cqhttp.org/cqcode · 不要填 2705 这类十六进制值（会贴出空白）",
+            "hint": "在线速查 " + FACE_LOOKUP_URL + " · 别填 2705 这类十六进制值（会贴出空白）",
         },
     )
     emoji_id: str = Field(

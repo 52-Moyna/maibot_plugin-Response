@@ -28,6 +28,8 @@
 
 **默认关闭。** 打开后配置页变成分组卡片、滑条能直接填数字；关掉还原成 dashboard 默认样式。
 
+![框架默认样式](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/config-panel-default.png)
+
 打开它：`config.toml` 里 `beautify_ui = true`，或者手动跑一次脚本。
 
 ```bash

@@ -2,7 +2,7 @@
 
 机器人回复某条消息时，顺手在被回复的那条消息上贴一个表情回应。
 
-![插件配置界面（开启「美化配置页」后）](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/config-panel.png?v=0.5.3)
+![插件配置界面（开启「美化配置页」后）](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/config-panel.png?v=0.5.4)
 
 `MaiBot 1.0.0+` · `maibot-plugin-sdk 2.5.1+` · 插件本体无需额外依赖 · Windows / Linux / macOS
 
@@ -28,7 +28,7 @@
 
 **默认关闭。** 打开后配置页变成分组卡片、滑条能直接填数字；关掉还原成 dashboard 默认样式。
 
-![框架默认样式](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/config-panel-default.png?v=0.5.3)
+![框架默认样式](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/config-panel-default.png?v=0.5.4)
 
 打开它：`config.toml` 里 `beautify_ui = true`，或者手动跑一次脚本。
 
@@ -67,7 +67,7 @@ WebUI 里是四张卡片，也可以直接改 `config.toml`。
 
 每个群可以单独设，互不打扰。**没写进列表的群一律走上面的全局配置**，所以只写想改的那几个群就行。
 
-![分群设置](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/group-rule.png?v=0.5.3)
+![分群设置](https://raw.githubusercontent.com/52-Moyna/maibot_plugin-Response/main/docs/group-rule.png?v=0.5.4)
 
 | `[[group.rules]]`   | 默认              | 说明                                            |
 | ------------------- | --------------- | --------------------------------------------- |

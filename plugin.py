@@ -20,14 +20,16 @@
 ``emoji reactions are not supported on private messages``。这是平台能力缺失而非故障，
 所以私聊一律静默跳过 —— 不发请求、不打日志、不计失败。
 
-表情 ID 说明（``emoji_pool`` 里填的是 QQ 表情的 **face id**，十进制）：
+表情 ID 说明（``emoji_pool`` 两种编号都收，都写十进制）：
 
-    478 = 对的对的   14 = 微笑   13 = 呲牙   76 = 赞
-     66 = 爱心      124 = OK     182 = 笑哭    32 = 疑问
+    系统表情 → face id：478 = 对的对的   14 = 微笑   76 = 赞   182 = 笑哭
+    Unicode emoji → 码点：🐛 = 128027    😧 = 128551    ✅ = 9989
 
-⚠️ 不要填 Unicode 码点的十六进制字面值（例如 ``2705`` 想表示 ✅）：接口会返回
-``status: ok``，但客户端贴出来是空白。要验证真贴上了，用 OneBot 的
-``/get_emoji_likes`` 查那条消息。
+系统表情必须在 QQ 目录里（``docs/qq-face-ids.md`` 那 299 个）；Unicode emoji 不受
+这张表限制，任意 emoji 只要能算出十进制码点就能贴。
+
+⚠️ 不要填十六进制字面值（``1F41B``、``2705`` 这类）：接口会返回 ``status: ok``，
+但客户端贴出来是空白。要验证真贴上了，用 OneBot 的 ``/get_emoji_likes`` 查那条消息。
 
 表情 face id 大全：见插件 ``docs/qq-face-ids.md``（``tools/gen_face_table.py`` 生成）。
 
@@ -217,7 +219,7 @@ class PluginSection(PluginConfigBase):
 
 
 class EmojiSection(PluginConfigBase):
-    """每次发送从这些表情里随机抽。填的是 QQ 表情的 face id。"""
+    """每次发送从这些表情里随机抽。填 face id，或 Unicode emoji 的十进制码点。"""
 
     __ui_label__ = "表情池"
     __ui_order__ = 1
@@ -225,14 +227,14 @@ class EmojiSection(PluginConfigBase):
     emoji_pool: list[str] = Field(
         default_factory=lambda: [DEFAULT_EMOJI_ID],
         description=(
-            "QQ 表情的 face id（十进制），可填多个。"
+            "QQ 表情的 face id（十进制），也可填 Unicode emoji 的十进制码点（🐛=128027）。可填多个。"
             "478=[对的对的] 14=微笑 13=呲牙 76=赞 66=爱心 124=OK 182=笑哭。"
             "完整对照见 " + FACE_TABLE_URL
         ),
         json_schema_extra={
             "label": "表情池",
             "order": 0,
-            "hint": "在线速查 " + FACE_LOOKUP_URL + " · 别填 2705 这类十六进制值（会贴出空白）",
+            "hint": "在线速查 " + FACE_LOOKUP_URL + "（带 emoji 换算框）· 别填 2705 这类十六进制值（会贴出空白）",
         },
     )
     emoji_id: str = Field(

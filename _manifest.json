@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "id": "babyQ.maibot_reply-mark",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "name": "回复标记插件",
   "description": "回复消息时，在被回复的那条消息上贴个表情，一眼就能看出它在回谁。",
   "author": {

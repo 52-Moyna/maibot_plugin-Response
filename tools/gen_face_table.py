@@ -289,6 +289,12 @@ def render_markdown(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
     out.append(
         "> 编号会跳号（0~524 之间缺一部分），那是 QQ 已经下线的老表情，不是表漏了。"
     )
+    out.append(">")
+    out.append(
+        "> **两种编号**：系统表情填 face id（如 `478`）；Unicode emoji 填**十进制码点**"
+        "（如 🐛 = `128027`、😧 = `128551`）。下面列的 68 个 emoji 只是 QQ 表情面板里那套，"
+        "**其他 emoji 只要知道码点也照样能贴**，不必在表里。"
+    )
     out.append("")
     out.append("填在插件 `[emoji] emoji_pool` 里的就是下表的 **id** 列（十进制字符串）。")
     out.append("")
@@ -430,6 +436,14 @@ HTML_TEMPLATE = """<!doctype html>
     outline: none;
   }
   #q:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  #conv {
+    flex: 0 1 330px; min-width: 220px; padding: 10px 14px; font-size: 14px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg);
+    outline: none;
+  }
+  #conv:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  #convOut { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  #convOut b { color: var(--accent); font-size: 17px; margin: 0 4px; cursor: pointer; }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
   .chip {
     padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line);
@@ -484,6 +498,8 @@ HTML_TEMPLATE = """<!doctype html>
 
   <div class="bar">
     <input id="q" type="search" placeholder="搜 id / 中文名 / em 编号，例如 478、对的、10500">
+    <input id="conv" type="text" placeholder="粘贴任意 emoji 换算码点，如 🐛">
+    <span id="convOut"></span>
   </div>
   <div class="chips" id="chips"></div>
   <div class="grid" id="grid"></div>
@@ -491,6 +507,8 @@ HTML_TEMPLATE = """<!doctype html>
 
   <footer>
     填进插件 <code>[emoji] emoji_pool</code> 的是卡片上的 <b>数字 id</b>。<br>
+    系统表情填 face id（<code>478</code>）；Unicode emoji 填<b>十进制码点</b>（🐛 = <code>128027</code>）——
+    上面 68 个只是 QQ 表情面板那套，别的 emoji 用右上角输入框换算后照样能贴。<br>
     🔴 不要填十六进制字面值（<code>2705</code>、<code>128536</code>）：接口返回 ok，但客户端贴出来是空白。<br>
     验证是否真贴上，用 <code>get_emoji_likes</code> 查那条消息 —— <code>set_msg_emoji_like</code> 对无效 id 也会返回 ok。
   </footer>
@@ -507,6 +525,26 @@ const chips = document.getElementById('chips');
 const q = document.getElementById('q');
 const empty = document.getElementById('empty');
 const toast = document.getElementById('toast');
+
+// emoji → 十进制码点。不在下表里的 emoji 也能贴，只要有码点。
+function firstCodepoint(text) {
+  for (const ch of String(text || '').trim()) {
+    const cp = ch.codePointAt(0);
+    if (cp === 0xfe0f || cp === 0xfe0e || /\\s/.test(ch)) continue;
+    return cp;
+  }
+  return 0;
+}
+const conv = document.getElementById('conv');
+const convOut = document.getElementById('convOut');
+if (conv && convOut) {
+  conv.addEventListener('input', () => {
+    const cp = firstCodepoint(conv.value);
+    if (!cp) { convOut.textContent = ''; return; }
+    convOut.innerHTML = '→ 十进制 <b title="点一下复制">' + cp + '</b>';
+    convOut.querySelector('b').onclick = () => copyPlain(String(cp), '已复制 emoji 码点 ' + cp);
+  });
+}
 
 // 雪碧图：整张图设一次 CSS 变量，每张卡片只算 background-position
 let spriteRows = 0;
@@ -597,6 +635,20 @@ function render() {
     frag.appendChild(el);
   });
   grid.appendChild(frag);
+}
+
+function copyPlain(text, msg) {
+  const done = () => {
+    toast.textContent = msg;
+    toast.classList.add('on');
+    clearTimeout(copyPlain._t);
+    copyPlain._t = setTimeout(() => toast.classList.remove('on'), 1300);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallback(text, done));
+  } else {
+    fallback(text, done);
+  }
 }
 
 function copy(d, el) {

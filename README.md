@@ -54,7 +54,7 @@ WebUI 里是四张卡片，也可以直接改 `config.toml`。
 
 | `[emoji]` 表情池 | 默认        | 说明               |
 | ------------- | --------- | ---------------- |
-| `emoji_pool`  | `["478"]` | face id 列表，每次随机抽 |
+| `emoji_pool`  | `["478"]` | face id 或 emoji 码点，每次随机抽 |
 | `emoji_id`    | `"478"`   | 池子为空时的兜底         |
 
 | `[network]` 连接    | 默认                   | 说明                                              |
@@ -115,10 +115,16 @@ mode = "off（不贴表情）"
 
 ## 表情 ID
 
-填 QQ 表情的 **face id**，不是 Unicode 码点。
+两种编号都行，**都不是十六进制**：
 
-- 完整 **299 个（含 190 个新版）** → [qq-face-ids.md](https://github.com/52-Moyna/maibot_plugin-Response/blob/main/docs/qq-face-ids.md)，`Ctrl+F` 搜名字
+| 贴什么 | 填什么 | 例子 |
+| --- | --- | --- |
+| QQ 系统表情 | **face id** | `478` = 对的对的 |
+| Unicode emoji | **十进制码点** | 🐛 = `128027`、😧 = `128551`、✅ = `9989` |
+
+- 完整 **299 个 face id（含 190 个新版）** → [qq-face-ids.md](https://github.com/52-Moyna/maibot_plugin-Response/blob/main/docs/qq-face-ids.md)，`Ctrl+F` 搜名字
 - 想更顺手 → [打开速查器](https://52-moyna.github.io/maibot_plugin-Response/face-lookup.html)，搜索、筛选、点一下复制 id
+- 表里只列了 QQ 表情面板里的 68 个 emoji。**别的 emoji 不用在表里**，速查器右上角有个输入框，粘贴任意 emoji 就换成码点
 
 网上那些对照表基本停在 221 号之前，之后 QQ 新增的一个都没有。QQ 再出新表情，重跑 `python tools/gen_face_table.py` 就更新 —— 用 NapCat 也行，脚本自带表情目录快照，不用装别的。
 
@@ -126,7 +132,8 @@ mode = "off（不贴表情）"
 
 ⚠️ 注意：
 
-- 别填表里没有的 ID，比如 `2705`、`128536` 这类十六进制值。接口会返回 `ok`，但客户端贴出来是**空白**
+- 别填十六进制字面值，比如 `2705`、`128536`。接口会返回 `ok`，但客户端贴出来是**空白**
+- 表里没有的 face id 别硬填 —— 多半是 QQ 已下线。emoji 则不受这张表限制
 - 只有「重抓表情图片」才需要 Pillow（`pip install Pillow`），`tools/fetch_face_images.py` 用；生成 ID 表和日常贴表情都不需要
 
 ## 排错

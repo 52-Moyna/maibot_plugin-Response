@@ -84,11 +84,32 @@
   #toast.on { opacity: 1; transform: translate(-50%, 0); }
   footer { margin-top: 34px; color: var(--muted); font-size: 12px; line-height: 1.9; }
   footer code { background: var(--card); border: 1px solid var(--line); padding: 1px 5px; border-radius: 5px; }
+  footer a, .repo { color: var(--accent); text-decoration: none; }
+  footer a:hover, .repo:hover { text-decoration: underline; }
+  .head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .head h1 { margin: 0; }
+  .repo {
+    display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+    color: var(--muted); font-size: 13px; text-decoration: none; white-space: nowrap;
+    transition: border-color .12s ease, color .12s ease, background .12s ease;
+  }
+  .repo:hover {
+    border-color: var(--accent); color: var(--accent);
+    background: var(--accent-soft); text-decoration: none;
+  }
+  .repo svg { width: 14px; height: 14px; flex: 0 0 auto; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>QQ 表情 ID 速查器</h1>
+  <div class="head">
+    <h1>QQ 表情 ID 速查器</h1>
+    <a class="repo" href="https://github.com/52-Moyna/maibot_plugin-Response" target="_blank" rel="noopener" title="查看回复标记插件仓库">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      插件仓库
+    </a>
+  </div>
   <div class="sub">
     共 <b>299</b> 个 face id（367 个带预览图），其中 <b>190</b> 个是编号 221 之后的新版表情；
     另有 <b>68</b> 个 emoji 码点（角标「码」）。数据抓取于 2026-10-27 17:04。点卡片即复制。
@@ -108,7 +129,9 @@
     系统表情填 face id（<code>478</code>）；Unicode emoji 填<b>十进制码点</b>（🐛 = <code>128027</code>）——
     上面 68 个只是 QQ 表情面板那套，别的 emoji 用右上角输入框换算后照样能贴。<br>
     🔴 不要填十六进制字面值（<code>2705</code>、<code>128536</code>）：接口返回 ok，但客户端贴出来是空白。<br>
-    验证是否真贴上，用 <code>get_emoji_likes</code> 查那条消息 —— <code>set_msg_emoji_like</code> 对无效 id 也会返回 ok。
+    验证是否真贴上，用 <code>get_emoji_likes</code> 查那条消息 —— <code>set_msg_emoji_like</code> 对无效 id 也会返回 ok。<br>
+    本页属于「回复标记插件」（<code>babyQ.maibot_reply-mark</code>），安装与配置说明见
+    <a href="https://github.com/52-Moyna/maibot_plugin-Response" target="_blank" rel="noopener">插件仓库</a>。
   </footer>
 </div>
 <div id="toast"></div>
